@@ -1,0 +1,158 @@
+COMMUNICATION CHANNELS - SPECIFICATION
+
+Topic: Communication channels between tasks
+
+1. Objective
+-----------------------------------------------------------------------------------
+The objective is to specify a communication layer provided by the Broker,
+Channel, and Task classes. This specification describes the expected external
+behavior of these classes. Implementation and design choices are intentionally
+left for the next stage.
+
+Scope note after the first discussion:
+    - This first version supports one client task connected to one server task.
+    - Each successful connection represents one bidirectional channel between
+      that client and that server.
+    - Supporting several clients at the same time is outside the scope of this
+      specification and may be considered in a later version.
+-----------------------------------------------------------------------------------
+
+2. Main classes
+-----------------------------------------------------------------------------------
+Broker
+---
+The Broker is responsible for creating listening endpoints (with the ports)  and accepting
+connections from other tasks.
+
+Constructor:
+    Broker(String name)
+
+The name identifies the broker. It must not be null or empty.
+
+Method accept(int port):
+    - Creates a listening endpoint on the specified port.
+    - Returns a Channel that can be used by the server task.
+    - A port should not have two listeners at the same time. One call for the method accept for each port.
+    - An invalid or already-used port must produce an error and the opreration must fail.
+
+Method connect(String name, int port):
+    - Connects to a broker and its listening port.
+    - Returns a Channel for the client task.
+    - If the broker or port cannot be found, the operation fails.
+    - A successful connection provides bidirectional communication for one client task and one server task:
+      the client can send bytes to the server, and the server can send bytes back
+      to the client. Each side receives a channel endpoint for this connection.
+---
+Channel
+---
+The Channel represents one endpoint of a bidirectional byte stream. [ server channel <---------> client channel ]
+
+Method read(byte[] bytes, int offset, int length):
+    - Reads bytes received from the other task.
+    - Stores them in the given array starting at offset.
+    - Bytes must be read in the same order in which they were written by the other task. ( FIFO, ...)
+    - If no byte is available, the method may wait while the channel is active. (demon maybe)
+    - If the channel is disconnected and there are no remaining bytes, its
+      behavior must be defined by the final design. (wait or kill or ...)
+    - The method returns the number of bytes read.
+
+Method write(byte[] bytes, int offset, int length):
+    - Sends bytes to the other task.
+    - The bytes are taken from the given array and range.
+    - The method must define how it behaves when the communication mechanism
+      cannot currently accept more bytes. (buffer, fail, ...)
+    - If the channel is disconnected, no new bytes are sent.
+    - The method returns the number of bytes written.
+
+Method disconnect():
+    - Closes the local endpoint.
+    - Calling this method several times must be safe. (or not ?)
+
+Method disconnected():
+    - Returns true if the channel has been disconnected.
+    - Returns false while the channel is still active.
+---
+
+
+Task
+---
+Task is an execution unit based on Thread. It receives a Broker and a Runnable
+body. Its body performs the communication work. A task can use the broker to
+create or connect to a channel.
+
+Constructor Task(Broker b, Runnable r):
+    - Creates a task associated with broker b and runnable r.
+    - The broker is used by the task to establish connections.
+    - The runnable defines the work performed by the task.
+    - Creating the task does not start its execution. Calling start(), inherited
+      from Thread, starts the task and executes the runnable in its own thread.
+
+Method static Broker getBroker():
+    - Returns the broker associated with the task making the call.
+    - Different tasks may be associated with different brokers.
+    - If called from a thread that is not a Task, throws an exepcition maybe.
+
+
+Example: lets say the tasks in an echo exchange like we did last year.
+
+The client task connects to the server, sends the bytes representing "Hello",
+and reads the reply. The server task accepts the connection, reads the received
+bytes, and writes the same bytes back.
+
+The tasks execute the code that calls read() and write(). A Channel does not
+decide by itself to send a message or produce a reply.
+
+    Client Task                              Server Task
+    calls:                                   calls:
+    clientChannel.write(...)  ------------>  serverChannel.read(...)
+    clientChannel.read(...)   <------------  serverChannel.write(...)
+
+Here, clientChannel and serverChannel represent the two ends of the same
+connection. Each task uses its own endpoint to read and write. Bytes written
+at one endpoint are read at the other endpoint.
+
+As a simple analogy, what I imagine is, the tasks are two people talking, the channel endpoints
+are their phones, and the connection is the call between them. The broker (maybe the operator)
+helps establish the call. How the bytes travel between the endpoints will be
+addressed in the design stage.
+
+-----------------------------------------------------------------------------------
+
+
+Note: The following points are not part of the specification but I put it anyways to help me remember them.
+
+3. Echo-server use case
+-----------------------------------------------------------------------------------
+The server calls accept(port). The client calls connect(name, port). The client
+sends a message, for example "Hello". The server reads the message and sends
+the same bytes back. Finally, the client reads the response.
+
+The test is successful if:
+
+    - The response has the same number of bytes as the request.
+    - Every response byte is equal to the corresponding request byte.
+    - The byte order is unchanged.
+    - Both tasks can disconnect and terminate correctly.
+
+
+-----------------------------------------------------------------------------------
+
+
+4. Error cases to clarify during design and testing
+-----------------------------------------------------------------------------------
+The implementation should also be tested with:
+
+    - A message larger than the implementation's transfer capacity, if such a
+      capacity exists.
+    - An empty communication mechanism.
+    - A communication mechanism that cannot currently accept more bytes.
+    - A read interrupted by disconnection.
+    - A write interrupted by disconnection.
+    - Invalid array offsets and lengths.
+    - Repeated calls to disconnect().
+
+This specification describes the expected behavior before writing the design
+and the Java implementation. It does not assume whether the tasks run in the
+same process or on different machines, and it does not prescribe circular
+buffers or any other internal data structure yet. Like we discussed in the lesson.
+-----------------------------------------------------------------------------------
