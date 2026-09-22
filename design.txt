@@ -1,0 +1,127 @@
+COMMUNICATION CHANNELS - LOCAL DESIGN
+Arhan UNAY
+
+1. Main idea
+---------------------------------------------------------------------------
+Tasks run as threads in the same process. Several clients can connect to a
+server, but each connection has only two endpoints. Each endpoint can send
+and receive bytes. The bytes keep their order in each direction.
+
+2. Main classes
+---------------------------------------------------------------------------
+- Boot implements Bootstrap and creates the first brokers and tasks.
+- BrokerManager uses a shared map to find brokers by name. Access to this map
+  is synchronized, and duplicate names are rejected.
+- CBroker implements Broker. It stores its name and pending requests by port.
+- CChannel implemnts Channel. Each endpoint stores its broker, port, side
+  number, and a reference to the shared Connection.
+- Connection is a helper containing two circular buffers and two closed flags,
+  one for each endpoint.
+- CTask extends the given Task class and runs a Runnable with a broker.
+
+3. Establishing a connection
+---------------------------------------------------------------------------
+connect(name, port) first looks up the destination broker. If it does not
+exist, connect returns null. Otherwise, the request joins a queue on that
+broker's port and waits for accept(port).
+
+accept also wait if no connection request is available. Either call may
+arrive first. A match creates two CChannel objects sharing one Connection.
+The server receives one endpoint and the client receives the other.
+
+Only one accept may wait on a given broker port, but several connects may
+queue there. After a match, another accept can handle the next client while
+the previous connection remains active. Ports are local integer identifiers.
+
+The destination broker's monitor protects these queues. Waiting calls release
+the monitor and check their condition again after being notified.
+
+4. Data transfer
+---------------------------------------------------------------------------
+Each connection uses two instances of the supplied CircularBuffer:
+
+    Client write() --> incoming[1] --> Server read()
+    Client read()  <-- incoming[0] <-- Server write()
+
+Each array has 257 positions, allowing 256 bytes because one position is left
+unused. Head is the next write position; tail is the next read position.
+Both wrap around at the end of the array.
+
+    empty: head == tail
+    full:  (head + 1) % array length == tail
+
+read waits when its buffer is empty. write waits when its buffer is full.
+Once progress is possible, the method transfers available bytes up to length
+and returns the number transferred. The caller handles partial transfers.
+
+The Connection monitor protects its buffers and close flags. wait releases
+this monitor, so a blocked reader does not prevent a writer from progressing.
+Transfers call notifyAll, and waiting conditions are checked in while loops.
+
+One reader and one writer may use the same endpoint concurrently. Multiple
+readers or multiple writers on that endpoint are not supported by the contract
+that the prof gave.
+
+5. Disconnection
+---------------------------------------------------------------------------
+disconnect sets the calling endpoint's closed flag and wakes waiting tasks.
+That endpoint immediately reports disconnected, and its reads return 0.
+
+The other endpoint can still read bytes sent before the close. It reports
+disconnected only after those bytes are drained; its next read returns 0.
+This is why one shared closed flag would not be enough in my opinion.
+
+Writes after either side closes drop the requested bytes. This implementation
+returns the requested length for a dropped write. Closing repeatedly is safe.
+
+6. Tasks and implementation choices
+---------------------------------------------------------------------------
+Boot.newTask creates a CTask, which starts automatically. Its run method
+executes the supplied Runnable and updates its lifecycle state on completion.
+Application code does not call start directly.
+
+Task.task() returns the current task. Its getBroker, newBroker and newTask
+methods are called from that task. alive and dead can be checked from another
+thread. After startup, tasks create further brokers and tasks themselves.
+
+Invalid byte ranges cause IllegalArgumentException.
+Waits remember interruptions and restore the interrupt flag when they finish.
+
+7. Object graph: one connected client and server
+---------------------------------------------------------------------------
+Arrows below are references, not byte flow. Array objects and pending requests
+are omitted to keep the graph readable.
+
+BrokerManager.brokers (shared map)
+    |-- "client" --> clientBroker : CBroker
+    +-- "server" --> serverBroker : CBroker
+
+clientTask : CTask -- broker --> clientBroker
+serverTask : CTask -- broker --> serverBroker
+clientTask -- boot --> clientBody : Runnable
+serverTask -- boot --> serverBody : Runnable
+
+clientChannel : CChannel -- broker --> clientBroker
+serverChannel : CChannel -- broker --> serverBroker
+clientChannel -- connection --+
+                             +--> conn : Connection
+serverChannel -- connection --+       |
+                                     |-- incoming[0] --> toClient : CircularBuffer
+                                     +-- incoming[1] --> toServer : CircularBuffer
+
+clientChannel.side = 0; serverChannel.side = 1
+conn.closed[0] = false; conn.closed[1] = false
+
+The task bodies use channel references during execution. Channels can also be
+shared with other tasks. Each circular buffer holds its own byte array.
+The broker keeps pending requests, not a list of established connections.
+
+8. Echo example
+---------------------------------------------------------------------------
+The server accepts connections and gives each one to a worker task. The client
+uses separate reader and writer tasks on its endpoint. The server reads bytes
+and writes them back, handling partial transfers.
+
+The client checks the echoed bytes and disconnects after both tasks finish.
+This allows messages larger than the buffers without waiting to send the whole
+message before reading the reply.
