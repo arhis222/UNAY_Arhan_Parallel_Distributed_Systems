@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<launchConfiguration type="org.eclipse.jdt.launching.localJavaApplication">
+<stringAttribute key="org.eclipse.jdt.launching.PROJECT_ATTR" value="Arhan_UNAY_Channels"/>
+<stringAttribute key="org.eclipse.jdt.launching.MAIN_TYPE" value="edu.polytech.queues.tests.Test"/>
+<stringAttribute key="org.eclipse.jdt.launching.PROGRAM_ARGUMENTS" value="-nclients:2 -nconnects:2 -nbytes:1024"/>
+<stringAttribute key="org.eclipse.jdt.launching.VM_ARGUMENTS" value="-ea"/>
+</launchConfiguration>

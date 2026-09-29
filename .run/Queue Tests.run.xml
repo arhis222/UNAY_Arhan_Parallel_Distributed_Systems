@@ -1,0 +1,9 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Queue Tests" type="Application" factoryName="Application">
+    <option name="MAIN_CLASS_NAME" value="edu.polytech.queues.tests.Test" />
+    <module name="Arhan_UNAY_Channels" />
+    <option name="PROGRAM_PARAMETERS" value="-nclients:2 -nconnects:2 -nbytes:1024" />
+    <option name="VM_PARAMETERS" value="-ea" />
+    <method v="2"><option name="Make" enabled="true" /></method>
+  </configuration>
+</component>
