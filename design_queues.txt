@@ -1,0 +1,96 @@
+MESSAGE QUEUES - LOCAL DESIGN
+Arhan UNAY
+
+1. Main idea
+---------------------------------------------------------------------------
+I plan to keep the messages in memory and use the supplied Executor and CTask.
+Tasks will exchange complete messages through two connected queue endpoints.
+The operations should not block: their results will be delivered later through
+listeners. The Executor will run the tasks' events on one shared thread.
+
+2. Main classes
+---------------------------------------------------------------------------
+- Boot will implement Bootstrap and create the first task. After that, tasks
+  will use newTask and newBroker to create other tasks and brokers.
+- CQueueBroker will implement QueueBroker. I will use a shared map to find
+  brokers by name and a map in each broker to store its bound ports.
+- CMessageQueue will implement MessageQueue. Each endpoint will keep its
+  broker, a reference to the other endpoint and a queue of incoming messages.
+- The supplied CTask and Executor will handle posted jobs and task completion.
+
+3. Connections
+---------------------------------------------------------------------------
+bind will associate a port with a listener until unbind is called. This will
+allow several clients to connect through the same port. A second bind on an
+already bound port will return false.
+
+connect will first look up the destination broker. If it does not exist, the
+method will return false. Otherwise, a posted event will check its port.
+I will refuse the connection if the port is not bound or its task is dead.
+
+A successful connection will create two CMessageQueue objects, one for each
+side. accepted will run on the server broker's task and connected on the
+client broker's task. unbind will remove the port's listener and post unbound,
+without closing connections that have already been created.
+
+4. Sending and receiving
+---------------------------------------------------------------------------
+I will use an ArrayDeque<byte[]> for incoming messages. send will copy the
+requested range into a new array and put it in the other endpoint's queue.
+This will preserve the order and keep each message separate.
+
+The sent callback will return the original array and range to the sending
+task, so it can reuse them. setListener will save the listener and the task
+that installed it. received and closed must run on that task.
+
+Messages will stay queued until a receive listener is available. I will post
+one delivery event at a time and check that it still belongs to the current
+listener before calling it. Queue operations will run on the Executor thread.
+
+5. Closing and task completion
+---------------------------------------------------------------------------
+Each endpoint will have its own close flag. close will stop local reception
+and discard local incoming messages. The other endpoint must still receive
+the messages sent before the close, then receive a closed notification.
+I will keep a notification flag to avoid calling closed more than once.
+
+Messages sent after closure will be dropped, but their byte ranges must still
+be returned through the send callback. Repeated close calls will do nothing.
+I will register queues with the tasks that install their receive listeners,
+so the supplied task code can close them when those tasks finish or fail.
+
+6. Object graph: one connection
+---------------------------------------------------------------------------
+Planned objects for one connection. Arrows represent references. A worker
+task will receive server messages while the server task owns the broker.
+
+CQueueBroker.brokers
+    |-- "client" --> clientBroker : CQueueBroker
+    +-- "server" --> serverBroker : CQueueBroker
+
+clientBroker -- task --> clientTask : CTask
+serverBroker -- task --> serverTask : CTask
+clientTask  -- broker --> clientBroker
+serverTask  -- broker --> serverBroker
+serverBroker -- ports[80] --> acceptListener : BindListener
+
+clientQueue : CMessageQueue <-- peer --> serverQueue : CMessageQueue
+    |                                      |
+    |-- broker --> clientBroker             |-- broker --> serverBroker
+    |-- incoming --> messagesForClient      |-- incoming --> messagesForServer
+    |-- listener --> clientListener         |-- listener --> workerListener
+    +-- listenerTask --> clientTask         +-- listenerTask --> workerTask
+
+messagesForClient and messagesForServer will be separate ArrayDeque<byte[]>
+objects. All tasks will use the same supplied Executor.
+
+7. Design choices
+---------------------------------------------------------------------------
+For this version, I will allow empty messages and use queues without a fixed
+capacity. Invalid byte ranges will cause IllegalArgumentException. send will
+return false when a message is dropped because of closure. Each task will
+have at most one broker, following the supplied CTask.
+
+I will keep the supplied API and utility classes and add the three local
+classes described above. The supplied echo test will be used to check the
+connections and message exchanges.
