@@ -10,8 +10,11 @@ public class Boot implements Bootstrap {
     @Override
     public Task newTask(Runnable r, String name) {
         if (r == null || name == null) throw new IllegalArgumentException();
-        Task task = Executor.self().newTask(name);
-        task.post(r);
-        return task;
+        Executor executor = Executor.self();
+        synchronized (executor) {
+            Task task = executor.newTask(name);
+            task.post(r);
+            return task;
+        }
     }
 }
