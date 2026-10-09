@@ -1,0 +1,106 @@
+TOKEN SERVICE WITH FAILURES - STATEFUL DESIGN
+Arhan UNAY
+
+1. Main idea
+---------------------------------------------------------------------------
+I will use one server to decide who owns the token. Clients will communicate
+with it through messages. The server will process requests, returns and
+failure notifications one at a time.
+
+Before sending a grant, it will save the new owner on disk. This order matters:
+if the server crashes just after sending the grant, it must still remember
+that the client may be using the token when it restarts.
+
+2. Library objects and operations
+---------------------------------------------------------------------------
+- TokenClient will offer acquire and release, with asynchronous completion
+  callbacks. Its states will be IDLE, WAITING, HOLDING and RELEASING.
+- TokenServer will keep the current owner and a FIFO queue of requests.
+- StateStore will save and load one complete server state atomically. A save
+  must be durable before the server sends the corresponding reply.
+- FailureDetector is the service given by the exercise. Each side will
+  register the processes it knows and handle confirmed failure notifications.
+
+The server state will contain the owner, waiting requests, session identities
+and the last completed request number for each session. I will use a deque
+for waiting requests and a map for session information.
+
+3. Messages and normal operation
+---------------------------------------------------------------------------
+A client will use a unique session identity and increasing request numbers.
+The pair (session, request number) will identify a grant as well as a request.
+These identifiers are protocol information, not application data in the token.
+
+REQUEST(id): if the token is free, the server will save owner = id, then send
+GRANT(id). Otherwise, it will save the request at the end of the queue.
+Repeating the same request will not add another queue entry. If it is already
+the owner, the server will resend the same grant.
+
+GRANT(id) gives the client permission to use the token. A waiting client
+will enter HOLDING and notify its application
+once. Duplicate or outdated grants will not start another operation.
+
+RELEASE(id): the application must finish its protected operation first.
+The client will enter RELEASING and stop using the token before sending this
+message. It will retry if necessary. It must ignore further grants for id.
+
+On a valid release, the server will atomically save the completed request,
+remove the next waiting request and make it the new owner, or mark the token
+free. It will then send RELEASED(id) and, if needed, the next GRANT.
+The client will return to IDLE after RELEASED. Duplicate releases will be
+acknowledged without releasing another client's token. Completed request
+numbers will prevent delayed requests from acquiring the token again.
+
+4. Client and server failures
+---------------------------------------------------------------------------
+When a client connects, the server will learn its address and start monitoring
+its process incarnation. A confirmed crash will remove that session's queued
+requests. If it was the owner, the server will save the next owner before
+sending a new grant. This also handles a crash while the grant is in transit.
+
+If the connection merely closes, the server will keep the reservation until
+a valid release or a confirmed crash. There will be no timeout-based takeover.
+
+After a server crash, clients will reconnect to the same logical service.
+A holder may finish its operation: its reservation survives on disk. A client
+returning the token will stay RELEASING and retry until acknowledged.
+
+On restart, the server will load its state before accepting requests. It will
+resume monitoring saved sessions, preserve the queue and resend a saved grant
+when its owner reconnects. If a crash happened before a reply was sent, retries
+will recover that reply without creating a second grant. The server will not
+reset ownership to free just because it has restarted.
+
+If saving fails, the server will stop making ownership changes and report a
+service failure. It must not send a grant based on an unconfirmed disk write.
+
+5. Object graph: two connected clients
+---------------------------------------------------------------------------
+Arrows below represent references inside each process. Message links connect
+separate client and server processes; they are not shared Java references.
+
+Server process:
+  server : TokenServer
+    |-- store --> stateStore : StateStore --> saved state on disk
+    |-- detector --> serverDetector : FailureDetector
+    |-- owner --> requestA : RequestId
+    |-- waiting --> [requestB : RequestId]
+    +-- sessions --> {sessionA, sessionB}
+
+Client A process:                 Client B process:
+  clientA : TokenClient            clientB : TokenClient
+    |-- state = HOLDING              |-- state = WAITING
+    |-- request = requestA           |-- request = requestB
+    +-- detector --> detectorA       +-- detector --> detectorB
+
+  clientA <------ messages ------> server <------ messages ------> clientB
+
+Here A has permission to work. B will wait until A returns the token or A's
+process is confirmed dead.
+
+6. Planned checks
+---------------------------------------------------------------------------
+I will check two simultaneous requests, FIFO order, repeated messages, a
+waiting client crash and a holder crash. I will also check server crashes
+before and after saving a grant or a release. In every case, two live clients
+must never enter the critical section together.

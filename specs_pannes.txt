@@ -1,0 +1,66 @@
+TOKEN SERVICE WITH FAILURES - SPECIFICATION
+Arhan UNAY
+
+1. Purpose
+---------------------------------------------------------------------------
+The library must manage one token shared by a server and at least two clients.
+A client needs the token before starting its protected operation and must
+return it afterwards. The operation itself is outside the library's scope.
+There is no useful application data attached to the token. It represents
+permission to enter the critical section.
+
+2. Required behaviour
+---------------------------------------------------------------------------
+- Initially, the server owns the token and it is available.
+- A client may request the token. If it is available, the server grants it.
+  Otherwise, the server keeps the request in a waiting queue.
+- At most one client may have permission to use the token at a time.
+- Returning the token ends the client's permission to use it. The server
+  may then grant it to another waiting client.
+- A slow response or a lost connection alone must not justify granting a
+  second token while the previous client may still be using it.
+
+3. Failure detector provided by the exercise
+---------------------------------------------------------------------------
+A failure notification is always correct. However, the absence of such a
+notification does not prove that a process is alive: detection may be delayed.
+
+Clients know the server's address and can monitor it before connecting.
+The server can monitor a client after learning its address on connection.
+
+If a waiting client crashes, its request must be removed. If the token holder
+crashes, the server may recover the permission once the failure is confirmed.
+No application data needs to be recovered from the token.
+
+4. Selected version and assumptions
+---------------------------------------------------------------------------
+I choose the stateful version, with server information saved on disk.
+The stateless version is not covered by this design.
+
+For this version, I assume:
+- Processes follow the protocol and failures are crashes, not malicious acts.
+- The server can restart with its saved state. Only one server instance may
+  be active at a time, and its disk survives a process crash.
+- A restarted client has a new session identity and cannot reuse an old grant.
+- Confirmed failure refers to a particular process incarnation, not every
+  future process using the same address.
+- Connected live processes eventually exchange messages. After a connection
+  breaks, requests may be retried, so duplicates must be handled.
+- For progress after a crash, the detector eventually reports that crash.
+  This is an additional progress assumption beyond never reporting a false
+  failure.
+
+5. Observable guarantees
+---------------------------------------------------------------------------
+Waiting requests will be served in the order the server accepts them, ignoring
+clients confirmed dead. A client may have only one outstanding request.
+
+After a server restart, an existing grant must remain reserved for its owner
+until it is returned or that owner is confirmed dead. Waiting clients must
+not lose their accepted position in the queue.
+
+A server failure may delay acquisition or confirmation of a return. It does
+not automatically give another client permission. Progress requires an
+available server, eventual communication and a holder that returns the token
+or is eventually confirmed dead. The library cannot force a live client
+that keeps the token forever to release it safely.
