@@ -1,0 +1,58 @@
+TOTALLY-ORDERED MULTICAST - SPECIFICATION
+Arhan UNAY
+
+1. Goal
+---------------------------------------------------------------------------
+The library must let processes multicast messages to a group. Every member
+must deliver the messages in the same order, even when several members send
+at the same time. Receiving a message and delivering it to the application
+are different operations: a received message may have to wait.
+
+This extends reliable broadcast. Forwarding a message helps it reach the
+other members, but forwarding alone does not give a common delivery order.
+
+2. Properties
+---------------------------------------------------------------------------
+- A message is delivered at most once by each process incarnation.
+- Every delivered message must come from a multicast by a group member.
+- Without failures, every multicast is eventually delivered by every member.
+- With failures, a multicast from a correct member must eventually reach and
+  be delivered by all correct members of its view.
+- If a member delivers a message, even if that member later crashes, all
+  members that remain correct must eventually deliver it. I choose this
+  stronger, uniform form of agreement for the failure extension.
+- Members that deliver two messages must deliver them in the same order.
+
+3. Stages required by the classwork
+---------------------------------------------------------------------------
+1. Define how processes form a static group.
+2. Design TOM for that group without failures. Explain why a message at the
+   head of the queue, with all acknowledgements, can safely be delivered.
+3. Handle process crashes without restart, using a perfect failure detector,
+   while preserving multicast atomicity.
+4. Extend the design to allow failed processes to restart and rejoin.
+
+4. Assumptions and choices
+---------------------------------------------------------------------------
+Processes follow the protocol. The detector never reports a live process as
+failed, and eventually reports each crashed process. Detection may be delayed.
+A process not yet reported failed may already have crashed.
+
+For the normal protocol, I will use reliable FIFO links between each pair of
+members. DATA and ACK messages must share the same outgoing order on a link.
+There is no bound on message delay, and physical clocks need not agree.
+
+For recovery, I assume at least one member survives with the group's history.
+A total group crash, disk loss and malicious behaviour are outside this design.
+Membership changes must be agreed by the remaining members; a local detector
+notification alone is not an agreed change of group.
+
+5. Restart behaviour
+---------------------------------------------------------------------------
+A restarted process must catch up before it can multicast or acknowledge new
+messages. It must use a new incarnation identity so delayed messages from its
+previous execution cannot be confused with new ones.
+
+A recovering application will receive a snapshot and the following ordered
+history. Exactly-once external effects, such as writing to another service,
+are outside the multicast library's guarantee.

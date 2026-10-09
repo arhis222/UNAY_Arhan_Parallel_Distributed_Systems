@@ -1,0 +1,158 @@
+TOTALLY-ORDERED MULTICAST - DESIGN
+Arhan UNAY
+
+1. Static group
+---------------------------------------------------------------------------
+I will give each process the same configuration: a group identifier, a view
+number and a list of process identifiers and addresses. Members will connect
+and exchange READY messages containing that configuration. Multicast will
+start after every member is ready. A different configuration will be rejected.
+
+Each member will have a TomProcess object with a logical clock, FIFO links,
+a priority queue of received messages, acknowledgement sets and a delivery
+log. Protocol events will be processed sequentially at each member.
+
+2. Logical clocks and message identifiers
+---------------------------------------------------------------------------
+Following the lecture slide, the local clock will increase for each local
+event. Sending is an event, and the message will carry the resulting clock.
+On receiving a message with timestamp t:
+
+    clock = max(clock, t) + 1
+
+A DATA message will contain its view, sender incarnation, local sequence
+number, timestamp and payload. Its identifier will be:
+
+    (view, sender incarnation, sequence number)
+
+Within a view, the queue will be ordered by (timestamp, sender identifier).
+The sender identifier will break ties between equal timestamps. Two messages
+from one sender will have different timestamps. Messages in a new view will
+be delivered after the completed history of the preceding view.
+
+3. Normal protocol: no failures
+---------------------------------------------------------------------------
+MULTICAST(payload):
+    increase clock
+    create DATA with this timestamp and a new sequence number
+    send DATA to every member, including myself
+
+RECEIVE DATA(m):
+    update clock
+    if m is new, insert it into the priority queue
+    send ACK(m.id) to every member, including myself
+    try to deliver
+
+RECEIVE ACK(id):
+    update clock using the ACK timestamp
+    record the acknowledgement from its sender
+    try to deliver
+
+TRY TO DELIVER:
+    while the queue is not empty:
+        m = first message
+        if an acknowledgement from any member is missing: stop
+        remove m, append it to the delivery log, deliver its payload
+
+ACKs will identify the original DATA message and carry their own logical
+clock. Repeated DATA or ACK messages will not create duplicate entries or
+count a member twice. An ACK may arrive before its DATA through another link;
+I will keep it by message identifier until the DATA arrives.
+
+4. Why delivery is safe
+---------------------------------------------------------------------------
+Suppose P has received an ACK for m from every member Q. Before Q sends its
+ACK, it has received m and advanced its clock beyond m's timestamp.
+
+Any DATA that Q sends afterwards must have a larger timestamp than m. Any
+DATA that Q sent before its ACK must already have reached P, because the
+Q-to-P link carries DATA and ACK in FIFO order.
+
+Therefore, no member can later send P an unknown DATA with a smaller ordering
+key than m. If m is also first in P's queue, P can deliver it safely. Every
+member uses the same keys, so they will make the same ordering decision.
+
+For example, if P2 sends m at clock 10 and P1's clock is 3, receiving m makes
+P1's clock max(3, 10) + 1 = 11. P1's following ACK has a still larger clock.
+An older DATA from P1 must arrive before that ACK on the same FIFO link.
+This is the reason for the FIFO assumption; timestamps alone are not enough.
+
+5. Process failures: recovery outline
+---------------------------------------------------------------------------
+A crashed sender may have sent DATA to only part of the group. A crashed
+receiver may never send its ACK. Simply deleting missing ACK requirements
+locally could let members use different queues and deliver different orders.
+
+I plan to handle this with a view-change barrier:
+
+- On a failure or a view-change proposal, freeze normal delivery and new
+  multicasts for the old view. Keep incoming old-view data for recovery.
+- Every survivor sends its known DATA and delivery history to the recovery
+  coordinator. The lowest identifier among the current survivors will be
+  the proposed coordinator.
+- Merge the survivors' known DATA, remove duplicates and order the result
+  using the old view's ordering keys. Already delivered messages must form
+  a prefix of this result; an incompatible prefix must stop installation.
+- Agree on the same survivor list and completed old-view history. Each member
+  must store the full proposed history before acknowledging installation.
+- Install that result, deliver its missing suffix, then resume in the new view.
+  Late old-view traffic cannot add new messages to the completed view.
+
+A message already delivered normally was acknowledged by all old members.
+Consequently, every survivor received it before that delivery and can include
+it in recovery. Members will retain old-view DATA, including delivered DATA,
+until recovery no longer needs it. A partially sent message known to a
+survivor will also be included. A failed sender's message known to nobody
+alive, and never delivered, need not be recovered.
+
+The view-change component must provide a single agreed result per view.
+Selecting a coordinator alone does not provide that guarantee. If it crashes,
+the next coordinator must recover any decided result and use a new proposal
+round; members must reject stale rounds. A member that installed a result
+must retain it and pass it to the next coordinator.
+
+This section describes the required recovery mechanism, not a complete
+agreement algorithm. Its proposal, decision and coordinator-failure rules
+will need to be specified before implementing stages 3 and 4.
+
+6. Restarting a process
+---------------------------------------------------------------------------
+I will reuse the view-change barrier for joining. A restarted process will
+contact a survivor with a new incarnation identity and remain in RECOVERING.
+The survivor will transfer a snapshot at a known delivery position and the
+ordered log after it. No old ACK or grant of membership will be reused.
+
+The members will establish a common join boundary, finish the previous view
+and transfer everything up to that boundary. The recovering process will
+confirm that it has installed that state. Only then will an agreed new view
+include it in the DATA and ACK recipient lists. If the transfer source fails,
+it will retry with another survivor without becoming active early.
+
+7. Object graph: three members
+---------------------------------------------------------------------------
+Objects below are local to each process. Lines between processes are links.
+
+p1 : TomProcess <--- FIFO messages ---> p2 : TomProcess
+       \                                    /
+        \---------- p3 : TomProcess -------/
+
+Each TomProcess
+    |-- clock : LogicalClock
+    |-- view : GroupView
+    |-- links --> FIFO link to each other member
+    |-- pending --> PriorityQueue<Message>
+    |-- acknowledgements --> Map<MessageId, Set<MemberId>>
+    |-- history --> DeliveryLog
+    |-- detector --> FailureDetector
+    +-- membership --> ViewChange
+
+8. Planned checks
+---------------------------------------------------------------------------
+I will first check concurrent sends, equal timestamps, delayed ACKs and ACKs
+arriving before DATA. Every member's delivered list must be identical.
+
+For recovery, I will check a sender crashing during multicast, a receiver
+crashing before ACK, different detection times and a coordinator crashing
+during view change. Finally, I will check a restart with delayed messages
+from the old incarnation. These tests will follow the completed view-change
+protocol; the no-failure ACK rule alone does not solve those cases.
