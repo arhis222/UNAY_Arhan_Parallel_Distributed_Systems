@@ -16,19 +16,21 @@ We will use Arhan UNAY's existing SAR course repository:
 
 ## Branches and submission
 
-- Default project branch: `project-master`.
-- Final project version: `project-master`.
+- Default and shared development branch: `project-master`.
+- Final submission branch: `master`.
 - Earlier coursework: `lesson-arhan-personal-master`.
 - Deadline stated in the course email: 8 November 2026, before midnight.
 
-The completed project will be merged into `project-master` before the deadline.
+Members will merge their work into `project-master`. The completed and tested
+project will then be merged into `master` before the deadline. The professor
+should use `master` to evaluate the final submission, as required by the PDF.
+For now, `master` contains the initial project setup; it is not a finished
+submission.
+
 `lesson-arhan-personal-master` was Arhan UNAY's original `master` branch for
 individual SAR coursework before the group project. It preserves that work
 separately from the group's project branch.
 
-The assignment PDF specifies `main` or `master` for submission. Our chosen
-branch name, `project-master`, differs from that requirement and needs to be
-confirmed with the professor before final submission.
 Each member will also work on a personal branch and contribute commits and
 merges under their own Git identity.
 
