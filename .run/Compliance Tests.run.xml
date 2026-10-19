@@ -1,0 +1,8 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Compliance Tests" type="Application" factoryName="Application">
+    <option name="MAIN_CLASS_NAME" value="edu.polytech.channels.empty.ComplianceTests" />
+    <module name="Arhan_UNAY_Channels" />
+    <option name="VM_PARAMETERS" value="-ea" />
+    <method v="2"><option name="Make" enabled="true" /></method>
+  </configuration>
+</component>

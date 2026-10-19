@@ -74,17 +74,15 @@ period down to 0 ms for burst mode.
 - `docs/project.pdf`: original project assignment.
 - `.project`, `.classpath`, `.settings/`: Eclipse project configuration.
 - `Teacher Tests.launch`, `Queue Tests.launch`: existing Eclipse test launchers.
-- [specs.txt](specs.txt), [design.txt](design.txt): channel documentation.
-- [design_queues.txt](design_queues.txt), [specs_queue.pdf](specs_queue.pdf):
-  message queue documentation.
-- [specs_tom.txt](specs_tom.txt), [design_tom.txt](design_tom.txt): current TOM
-  specification and design from the coursework.
-- `specs_broadcast.txt`, `design_broadcast.txt`: reliable broadcast.
-- `specs_causal.txt`, `design_causal.txt`: causal multicast coursework.
-- `specs_pannes.txt`, `design_pannes.txt`, `specs_mutex.txt`, `design_mutex.txt`:
-  token and distributed mutex coursework.
+- [lesson-only-arhans-personal/](lesson-only-arhans-personal/): Arhan's earlier
+  individual coursework, including lecture PDFs, specifications and designs.
+  These files are reference material, not the group's final project documents.
+- [Coursework TOM specification](lesson-only-arhans-personal/specs_tom.txt)
+  and [design](lesson-only-arhans-personal/design_tom.txt): starting references
+  for the project.
+- `docs/`: project assignment and future group specification/design documents.
 
-The existing TOM documents are preliminary. They must be adapted to the
+The coursework TOM documents are preliminary. They must be adapted to the
 project brief, especially the local task runtime, dynamic membership and the
 rule that messages missed during a failure are never replayed to that actor.
 

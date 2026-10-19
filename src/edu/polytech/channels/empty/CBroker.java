@@ -13,7 +13,8 @@ public class CBroker implements Broker {
 
     private static final class Request { Channel endpoint; CBroker caller; }
     private static final class Port {
-        Request accept;
+        Request accept; // server accept request
+        // list of requests waiting for a connection
         final ArrayDeque<Request> connects = new ArrayDeque<Request>();
     }
 
@@ -23,7 +24,6 @@ public class CBroker implements Broker {
         this.name = name;
         manager.add(this);
     }
-
     @Override public String getName() { return name; }
 
     @Override public Channel connect(String name, int port) {
@@ -40,10 +40,10 @@ public class CBroker implements Broker {
         synchronized (this) {
             Port port = ports.get(number);
             if (port == null) {
-                port = new Port();
+                port = new Port(); // if the port number do not exist we create it
                 ports.put(number, port);
             }
-            Request request = new Request();
+            Request request = new Request(); // create a new request for the rendezvous
             request.caller = caller;
             if (client) port.connects.addLast(request);
             else {
