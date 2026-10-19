@@ -16,24 +16,33 @@ We will use Arhan UNAY's existing SAR course repository:
 
 ## Branches and submission
 
-- Project development branch: `sar-project`.
-- Final submission branch: `master`.
+- Default project branch: `project-master`.
+- Final project version: `project-master`.
+- Earlier coursework: `lesson-arhan-personal-master`.
 - Deadline stated in the course email: 8 November 2026, before midnight.
 
-The completed project will be merged into `master` before the deadline.
+The completed project will be merged into `project-master` before the deadline.
+`lesson-arhan-personal-master` was Arhan UNAY's original `master` branch for
+individual SAR coursework before the group project. It preserves that work
+separately from the group's project branch.
+
+The assignment PDF specifies `main` or `master` for submission. Our chosen
+branch name, `project-master`, differs from that requirement and needs to be
+confirmed with the professor before final submission.
 Each member will also work on a personal branch and contribute commits and
 merges under their own Git identity.
 
-| Member | Planned personal branch | Git author name |
+| Member | Personal branch | GitHub username |
 | --- | --- | --- |
-| Arhan UNAY | `arhan` | `arhis222` |
-| Adam TAWFIK | `adam` | To be confirmed |
-| Youssef KIRLOS | `youssef` | To be confirmed |
-| Abdallah ABDELSADEK | `abdallah` | To be confirmed |
+| Arhan UNAY | `arhan-master` | `arhis222` |
+| Adam TAWFIK | `adam-master` | `adamtawfik2-creator` |
+| Youssef KIRLOS | `youssef-master` | `youssefkirlos` |
+| Abdallah ABDELSADEK | `abdallah-master` | `abdallahwalid` |
 
-These personal branch names are planned; each member will create their branch
-when starting work. The Git author names and contribution record will be
-updated as the project progresses.
+Each member will use their personal branch and merge their work into
+`project-master`. GitHub usernames are listed above; Git commit author names
+will also be recorded as members contribute. Arhan's current Git author name
+is `arhis222`.
 
 ## Project brief
 
