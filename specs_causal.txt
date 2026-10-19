@@ -1,0 +1,40 @@
+CAUSALLY-ORDERED MULTICAST - SPECIFICATION
+Arhan UNAY
+
+Based on L3-Multicast, slides 27-40.
+
+1. Purpose
+---------------------------------------------------------------------------
+Each member can send a message to the entire group, including itself. If a
+multicast causally precedes another multicast, members must deliver them in
+that order. For example, a reply must not be delivered before the post that
+caused it. The library uses message dependencies, not the meaning of the text.
+
+Consecutive sends by one member are ordered. Delivering a message before
+sending another also creates a dependency. These dependencies are transitive.
+Concurrent messages may be delivered in different orders at different members.
+This is the difference from total order.
+
+2. Guarantees and assumptions
+---------------------------------------------------------------------------
+I will use a static group, known member identities and reliable FIFO channels.
+No failures are assumed in the first version. Every multicast is eventually
+delivered once at every member; messages are not invented or altered.
+Reception can happen before delivery when dependencies are still missing.
+
+The API will use multicast(String) and a delivered(String) listener, like the
+TOM interface, with a different ordering guarantee.
+The listener must be installed before starting. Applications must display
+their own messages through delivery too.
+
+3. Failure and restart extension
+---------------------------------------------------------------------------
+Following slide 40, I will also consider fail-stop crashes and restart on the
+same machine. The extension will use reliable broadcast and retained history.
+At least one correct member must retain the required history; a complete
+loss of the group state is outside this design.
+
+Missing dependencies must be recovered, not skipped when their sender dies.
+A restarted member must recover its vector and application state before
+sending new messages. Replaying history is not a guarantee that external
+application effects execute exactly once.

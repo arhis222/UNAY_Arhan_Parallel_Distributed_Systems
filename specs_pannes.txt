@@ -1,6 +1,9 @@
 TOKEN SERVICE WITH FAILURES - SPECIFICATION
 Arhan UNAY
 
+Scope: the token-only exercise. L2-Diverses-Techniques, slides 23-28,
+also considers protected data. That extension is in specs_mutex.txt.
+
 1. Purpose
 ---------------------------------------------------------------------------
 The library must manage one token shared by a server and at least two clients.

@@ -1,6 +1,9 @@
 TOKEN SERVICE WITH FAILURES - STATEFUL DESIGN
 Arhan UNAY
 
+This design covers a token without application data. The extension for
+several mutexes and protected values is described in design_mutex.txt.
+
 1. Main idea
 ---------------------------------------------------------------------------
 I will use one server to decide who owns the token. Clients will communicate
@@ -37,8 +40,8 @@ Repeating the same request will not add another queue entry. If it is already
 the owner, the server will resend the same grant.
 
 GRANT(id) gives the client permission to use the token. A waiting client
-will enter HOLDING and notify its application
-once. Duplicate or outdated grants will not start another operation.
+will enter HOLDING and notify its application once. Duplicate or outdated
+grants will not start another operation.
 
 RELEASE(id): the application must finish its protected operation first.
 The client will enter RELEASING and stop using the token before sending this

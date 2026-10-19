@@ -1,6 +1,8 @@
 TOTALLY-ORDERED MULTICAST - SPECIFICATION
 Arhan UNAY
 
+Based on L3-Multicast, slides 16-26.
+
 1. Goal
 ---------------------------------------------------------------------------
 The library must let processes multicast messages to a group. Every member
@@ -8,8 +10,22 @@ must deliver the messages in the same order, even when several members send
 at the same time. Receiving a message and delivering it to the application
 are different operations: a received message may have to wait.
 
-This extends reliable broadcast. Forwarding a message helps it reach the
-other members, but forwarding alone does not give a common delivery order.
+Reliable broadcast provides atomicity without ordering. TOM adds a common
+delivery order. FIFO links alone only order messages on each individual link.
+
+The interface given on slide 16 is:
+
+    interface TotallyOrderedMulticast {
+        interface Listener {
+            void delivered(String message);
+        }
+        void set(Listener l);
+        void multicast(String message);
+    }
+
+Each member can multicast, including to itself. Calling multicast is not
+delivery: the sender must wait for its own delivered callback too. I will
+require a listener to be registered before starting the group.
 
 2. Properties
 ---------------------------------------------------------------------------
@@ -18,9 +34,9 @@ other members, but forwarding alone does not give a common delivery order.
 - Without failures, every multicast is eventually delivered by every member.
 - With failures, a multicast from a correct member must eventually reach and
   be delivered by all correct members of its view.
-- If a member delivers a message, even if that member later crashes, all
-  members that remain correct must eventually deliver it. I choose this
-  stronger, uniform form of agreement for the failure extension.
+- All correct members eventually deliver a message or none do. This is the
+  atomicity requirement from L2, slide 16. Uniform agreement, which also
+  constrains delivery by members that later crash, is not required here.
 - Members that deliver two messages must deliver them in the same order.
 
 3. Stages required by the classwork

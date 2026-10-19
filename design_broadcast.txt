@@ -1,0 +1,67 @@
+RELIABLE BROADCAST - DESIGN
+Arhan UNAY
+
+Based on L2-Diverses-Techniques, slides 15-18.
+
+1. Main idea
+---------------------------------------------------------------------------
+I will follow the forwarding protocol on slide 17. The group will be static.
+Each message will contain its original sender, a sequence number and payload.
+The pair (sender, sequence number) will identify it even when another member
+forwards it. Every member will keep a set of delivered identifiers.
+
+2. Protocol
+---------------------------------------------------------------------------
+BROADCAST(payload):
+    create m with my identity and the next local sequence number
+    send m to every member, including myself
+
+RECEIVE(m) at member i:
+    if m.id is already delivered: discard it
+    otherwise:
+        if m.sender != i:
+            send m to all other members
+        add m.id to delivered
+        deliver m.payload to the application
+
+I will process events sequentially. Sending to the group means scheduling
+an outgoing copy on each link; a failed recipient must not stop sends to
+other recipients. Messages will be copied or transferred between actors,
+not shared as mutable application objects.
+
+3. Why it works
+---------------------------------------------------------------------------
+If a correct member receives m, it forwards m before delivering it. Reliable
+links then let every other correct member receive it. If the original sender
+is correct, its initial send already reaches the whole group.
+
+For example, A sends to B and crashes before sending to C. If B is correct,
+it forwards to C. C can deliver even though A has stopped. Multiple copies
+are harmless because their original identifier stays the same.
+
+If all members that knew m fail before any correct member receives it, no
+correct member has to deliver it. This is consistent with the specification.
+The algorithm does not establish a common order or uniform agreement with
+members that later fail. It does not require a failure detector to forward.
+
+4. Object graph
+---------------------------------------------------------------------------
+  memberA : ReliableBroadcast
+    |-- group --> member identities and FIFO links
+    |-- nextSequence --> local counter
+    |-- delivered --> Set<MessageId>
+    +-- listener --> application
+
+  memberA <--- messages ---> memberB <--- messages ---> memberC
+      \------------------- messages ----------------------/
+
+Each member has its own state. Lines between members represent communication,
+not shared Java references. For the causal extension, retained message history
+will be needed in addition to the set of delivered identifiers.
+
+5. Planned checks
+---------------------------------------------------------------------------
+I will check normal delivery including the sender, repeated copies and a
+sender crashing during its send loop. Correct members must deliver once or
+not at all. Different delivery orders are allowed. Restart and history
+cleanup are outside this basic protocol.

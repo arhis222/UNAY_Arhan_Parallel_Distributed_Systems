@@ -1,0 +1,46 @@
+DISTRIBUTED MUTEX WITH DATA - SPECIFICATION
+Arhan UNAY
+
+Based on L2-Diverses-Techniques, slides 23-28.
+
+1. Purpose and operations
+---------------------------------------------------------------------------
+One server will manage mutexes and their protected data items. At least two
+clients will use a library to enter and leave a critical section identified
+by data-id. The operations in the exercise are mutex_enter(data-id) and
+mutex_leave(data-id). Waiting for permission must not stop protocol events.
+
+For a given item, at most one client may be in its critical section. Different
+items may have different owners. When entry completes, the client must have
+the latest committed value of that item. Permission lasts until release or
+confirmed failure of its holder.
+
+2. Data semantics chosen for this design
+---------------------------------------------------------------------------
+I choose a stateful server with durable storage. During a critical section,
+the client edits a private copy. Leaving submits that copy. A successful
+leave means the new value is saved. The next owner must receive that value.
+
+If a client crashes before its update is committed, the previous committed
+value remains. If the update is committed but its reply is lost, retrying
+must return the same result without applying the update again. A lost reply
+alone does not tell the client whether the operation committed.
+
+Private copies and commit-on-leave are my choices, not an API prescribed by
+the slides. External effects performed by the application are outside this
+guarantee. The library cannot roll back a payment or another external action.
+
+3. Failures and progress
+---------------------------------------------------------------------------
+Clients and the server may fail-stop. The given perfect failure detector
+eventually reports crashes without false reports, although reports may be
+delayed. A closed connection alone does not allow another grant.
+
+The server can restart at the same address with its disk intact. Only one
+server instance is active. Clients use new session identities after restart.
+Live peers eventually communicate. Requests are served FIFO per item,
+excluding failed clients. Progress requires the server to recover and the
+holder either to release or to be confirmed dead.
+
+Nested acquisition of several items and application deadlock resolution are
+outside this version. A client can keep a mutex indefinitely if it stays alive.

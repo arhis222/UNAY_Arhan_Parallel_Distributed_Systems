@@ -1,12 +1,20 @@
 TOTALLY-ORDERED MULTICAST - DESIGN
 Arhan UNAY
 
+Based on L3-Multicast, slides 16-26, and L2-Diverses-Techniques, slides 4-8.
+
 1. Static group
 ---------------------------------------------------------------------------
 I will give each process the same configuration: a group identifier, a view
 number and a list of process identifiers and addresses. Members will connect
 and exchange READY messages containing that configuration. Multicast will
 start after every member is ready. A different configuration will be rejected.
+
+This first startup step assumes no failures. I will use one FIFO link per
+pair, opened by the member with the smaller identifier. A HELLO will identify
+the group and member at the other end. Each member will send READY once all
+its links are established. Handling a crash during startup needs the recovery
+mechanism described later.
 
 Each member will have a TomProcess object with a logical clock, FIFO links,
 a priority queue of received messages, acknowledgement sets and a delivery
@@ -58,6 +66,18 @@ ACKs will identify the original DATA message and carry their own logical
 clock. Repeated DATA or ACK messages will not create duplicate entries or
 count a member twice. An ACK may arrive before its DATA through another link;
 I will keep it by message identifier until the DATA arrives.
+
+The DATA ordering key is the pair (clock, sender), as on slide 21. An ACK
+contains that original key as well as its own sending clock; the original
+key must not be replaced by the ACK clock. I will increment the clock before
+sending an ACK. Only DATA is acknowledged, otherwise ACKs would cause an
+endless exchange. Local reception counts as my own acknowledgement, so the
+remaining requirement is an ACK from every other member.
+
+I will implement the interface in specs_tom.txt. The event pump will invoke
+delivered in queue order. In a Swing application, the listener will schedule
+display updates on the Swing event thread, preserving that order. Messages
+typed locally will also be displayed only through delivered, not when sent.
 
 4. Why delivery is safe
 ---------------------------------------------------------------------------

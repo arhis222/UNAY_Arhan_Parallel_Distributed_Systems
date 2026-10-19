@@ -1,0 +1,32 @@
+RELIABLE BROADCAST - SPECIFICATION
+Arhan UNAY
+
+Based on L2-Diverses-Techniques, slides 15-18.
+
+1. Purpose
+---------------------------------------------------------------------------
+A member broadcasts a message to the whole group, including itself.
+Receiving means that the library gets the message from a channel. Delivering
+means that the library passes it to the application.
+
+2. Requirements
+---------------------------------------------------------------------------
+- All correct members eventually deliver a broadcast message, or none do.
+- A correct sender's broadcast eventually reaches all correct members.
+- Each member delivers a message at most once.
+- Delivered messages must originate from a member's broadcast.
+- There is no common delivery-order guarantee between different messages.
+
+Here, correct means that the process does not fail during the execution.
+These requirements do not guarantee agreement with deliveries made only by
+processes that later fail. That stronger property is called uniform agreement.
+
+3. Assumptions and scope
+---------------------------------------------------------------------------
+I will use a fixed group whose members know each other. Links between correct
+members are FIFO and lossless. Processes are fail-stop: after a crash they
+cannot send or receive. A slow process is not automatically considered dead.
+
+The basic protocol tolerates crashes without restarts. A restart would need
+message history and fresh incarnation identifiers; resetting a sequence
+number and reusing the same sender identity would not be safe.

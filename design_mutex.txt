@@ -1,0 +1,79 @@
+DISTRIBUTED MUTEX WITH DATA - DESIGN
+Arhan UNAY
+
+Based on L2-Diverses-Techniques, slides 23-28.
+
+1. Objects and state
+---------------------------------------------------------------------------
+I will extend the stateful token design with one entry per data-id. The server
+will process messages and failure events sequentially. Each entry will hold
+a committed value, a version, an owner and a FIFO request queue.
+
+MutexClient will offer mutex_enter and mutex_leave with completion callbacks.
+After entry, the application will access a private working copy through the
+library. Leave will submit that copy.
+StateStore will atomically save the server state before a reply is sent.
+
+2. Entry and release
+---------------------------------------------------------------------------
+Requests will contain (session, request number, data-id). The server will
+remember completed requests to reject stale messages and answer retries.
+Each client will have at most one outstanding request per item. Request
+numbers will increase per session and item, so completing a request for X
+does not invalidate an older request still waiting for Y.
+
+ENTER: if free, save the new owner, then send GRANT with the committed value
+and version. Otherwise, save the request in the item's queue. Duplicate
+requests will not create extra grants or queue entries.
+
+GRANT: a waiting client installs the private copy before notifying the
+application. It ignores duplicate or outdated grants.
+
+LEAVE: the application stops using the copy. The library enters RELEASING
+before sending the request, including the resulting value and grant identity.
+The server checks ownership, then atomically saves the updated value, its
+next version, the completed request and the next owner (or no owner).
+Only after this save will it acknowledge leave and grant the next request.
+A repeated LEAVE returns the saved result; it must not overwrite newer data.
+
+3. Failure cases
+---------------------------------------------------------------------------
+- A waiting client crashes: remove its requests and save the queues.
+- A holder crashes before LEAVE commits: discard its private changes, retain
+  the last committed value and save a new owner before granting permission.
+- A holder crashes after LEAVE commits: keep the committed value. Its old
+  failure notification must not revoke the next owner's grant.
+- The server crashes: clients reconnect and retry with the same identifiers.
+  On restart it loads values, owners, queues and completed requests first.
+  A live holder's reservation is retained; a restart does not make it free.
+- A save fails: stop serving ownership changes. Do not grant from an
+  uncertain state. A later recovery must read a valid durable state.
+
+Atomic storage decides whether a release happened: after a crash, either the
+entire old state or the entire new state is recovered. A committed request
+whose reply was lost can therefore be answered without applying it twice.
+
+4. Object graph
+---------------------------------------------------------------------------
+Server process:
+  server : MutexServer
+    |-- items --> Map<DataId, MutexEntry>
+    |               entryX --> value, version, owner, waiting requests
+    |-- sessions --> completed request records
+    |-- store --> StateStore --> durable state
+    +-- detector --> FailureDetector
+
+Client processes:
+  clientA : MutexClient <--- messages ---> server
+    +-- held X --> private copy, grant identity, state
+  clientB : MutexClient <--- messages ---> server
+    +-- pending X --> request identity, WAITING
+
+Copies cross process boundaries as messages, not shared object references.
+
+5. Planned checks
+---------------------------------------------------------------------------
+I will check two clients requesting X, clients requesting different items,
+and a write followed by another client's read. I will then check crashes
+before and after a release save, lost replies and repeated requests. For X,
+there must never be two holders, and its committed version must not go back.

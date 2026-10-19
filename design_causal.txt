@@ -1,0 +1,96 @@
+CAUSALLY-ORDERED MULTICAST - DESIGN
+Arhan UNAY
+
+Based on L3-Multicast, slides 27-40.
+
+1. State
+---------------------------------------------------------------------------
+Each CausalProcess will have a fixed group, a vector V initially filled with
+zeros, a pending set and a delivery listener. V[k] will count messages from
+member k already delivered here. Events will be handled sequentially.
+
+A message will carry a payload, a copy of the vector and its sender. Its
+identifier will be (group, sender, vector[sender]). No physical time is used.
+
+2. Sending and receiving
+---------------------------------------------------------------------------
+MULTICAST(payload) at member i:
+    increment V[i]
+    create m with a copy of V
+    send m to all other members
+    record m in history and deliver it locally
+
+Local delivery is part of the same event, before the next application send.
+All dependencies in m have already been delivered here. A network loopback
+copy, if any, is a duplicate and must not be delivered again.
+
+RECEIVE(m) from original sender s:
+    if m.vector[s] <= V[s] or m.id is already pending: discard duplicate
+    otherwise add m to pending
+    repeat while a pending message can be delivered:
+        choose a message with
+            m.vector[s] == V[s] + 1
+            m.vector[k] <= V[k] for every k != s
+        remove it from pending
+        set V[s] = m.vector[s]
+        record it in history and deliver its payload
+
+The first condition waits for earlier messages from that sender. The second
+waits for dependencies on other senders. A received but blocked message must
+not advance V: that would claim its dependencies were already delivered.
+Receiving does not increment our own entry. Only multicasting does.
+
+Following the delivery conditions on slides 34 and 39, I will merge vectors
+component by component: max(V[k], m.vector[k]), only when delivery is allowed.
+Under these conditions, only the sender's entry changes. There is no
+acknowledgement round for causal ordering.
+
+3. Example
+---------------------------------------------------------------------------
+A sends a post with [1,0,0]. After delivering it, B sends a reply with [1,1,0].
+C receives the reply first while its vector is [0,0,0]. C must wait because
+the reply requires A's first message. After the post arrives, C delivers it,
+then the reply. Independent posts [1,0,0] and [0,1,0] need no common order.
+
+4. Failures and restart
+---------------------------------------------------------------------------
+For failures without restart, I will place the reliable broadcast protocol
+from design_broadcast.txt below the causal layer. Its deliveries become
+receptions for the causal layer, where vector conditions still apply.
+The local sender will also wait for the broadcast layer's local delivery;
+the send loop must finish before another application multicast is processed.
+Forwarding must retain the original sender and vector. If a correct member
+receives a dependent message, all predecessors were sent or delivered at its
+sender. Forwarding before delivery helps those predecessors reach survivors.
+Ordering sends on the same FIFO links is part of this requirement.
+
+For restart, I propose keeping full histories at correct members and replaying
+them into a fresh application state. A restarted process remains RECOVERING
+and cannot multicast yet. Surviving members must establish an agreed boundary
+for the old group, collect known messages and finish their causal delivery.
+The recovering process replays that history before joining a new group view.
+
+The new view will identify the new process incarnation and start new vector
+slots after the old history. Message identifiers will include the view and
+incarnation. Resetting counters in the old view would let delayed messages
+collide with new ones. Old traffic must not enter the new view.
+
+This restart part is a design outline. It still needs the agreement protocol
+for the boundary and rules for a recovery coordinator crashing, just as the
+TOM recovery extension does. A detector notification alone cannot establish
+that boundary. Histories will be retained without garbage collection in this
+version. The application must support replay, or provide a snapshot API.
+
+5. Object graph and checks
+---------------------------------------------------------------------------
+  process : CausalProcess
+    |-- vector --> delivered counters by member
+    |-- pending --> messages waiting for dependencies
+    |-- transport --> ReliableBroadcast --> FIFO peer links
+    |-- history --> retained messages
+    +-- listener --> application
+
+I will check replies arriving before posts, two concurrent posts, duplicates
+and several missing predecessors. For recovery I will check a sender crash
+during broadcast and a restart with old traffic still in transit. Every
+delivery must satisfy both vector conditions; concurrent orders may differ.
