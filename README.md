@@ -117,8 +117,28 @@ added here as the corresponding tests are implemented.
 
 ### Work already completed
 
-Arhan UNAY provided the existing course repository, channel and queue work,
-initial coursework documentation and group project setup.
+Arhan UNAY completed the initial preparation for the group project:
+
+- Provided his existing SAR course repository and the channel and message
+  queue implementations developed during the course as the starting code.
+- Prepared the earlier specification and design documents, including the
+  initial TOM design, and organised these references in
+  `lesson-only-arhans-personal/`.
+- Set up the Eclipse project configuration and the existing channel and queue
+  test launchers. The final project still needs a fresh-workspace import check.
+- Initialised the group project, added the assignment in `docs/project.pdf`
+  and prepared the README with group members and submission instructions.
+- Organised the shared development branch, personal branches and final
+  submission branch, while preserving the original coursework branch.
+- Prepared the initial task allocation and integration plan for the group.
+
+### Project coordination
+
+Arhan UNAY is the group's contact member and repository maintainer. Alongside
+his implementation tasks below, he will coordinate communication with the
+professor, track progress with the group and organise integration and final
+submission. Each member remains responsible for their own code, tests,
+documentation, commits and merges.
 
 ### Planned project responsibilities
 
