@@ -115,10 +115,43 @@ added here as the corresponding tests are implemented.
 
 ## Contributions
 
-| Member | Work |
-| --- | --- |
-| Arhan UNAY | Existing course repository, channel and queue work, initial documentation and project setup |
-| Adam TAWFIK | Project tasks to be assigned |
-| Youssef KIRLOS | Project tasks to be assigned |
-| Abdallah ABDELSADEK | Project tasks to be assigned |
+### Work already completed
+
+Arhan UNAY provided the existing course repository, channel and queue work,
+initial coursework documentation and group project setup.
+
+### Planned project responsibilities
+
+The following is our task allocation, not a record of completed work. Each
+member is responsible for the implementation, specification/design notes and
+tests for their part. We will share the failure and recovery work because it
+affects both membership and message ordering.
+
+| Member / branch | Main implementation | Tests and documentation |
+| --- | --- | --- |
+| Arhan UNAY / `arhan-master` | Task runtime and Actor lifecycle: per-task logical clocks, cancelling pending runnables, actor suicide, random failures and the per-task failure flag. Stop all tasks belonging to a failed actor and create fresh tasks on resurrection. | Clock and termination tests, including pending callbacks after death. Runtime/Actor specification and design. Coordinate integration and verify the final Eclipse import. |
+| Adam TAWFIK / `adam-master` | Group layer: initial N-member formation through the group manager, peer links, perfect failure detection and membership listeners. Drop traffic to/from dead members. Manage join, leave and reinsertion requests. | Group formation and membership tests, including delayed traffic from dead actors. Group specification and design. Implement agreed membership transitions jointly with Youssef. |
+| Youssef KIRLOS / `youssef-master` | TOM ordering: message identities, Lamport timestamps, ordered pending queue, acknowledgements and delivery. First implement the no-failure version, then adapt ordering and pending-message handling to actor failures. | No-failure and failure-without-reinsertion tests. Ordering specification and correctness argument. Define safe delivery boundaries for membership transitions jointly with Adam. |
+| Abdallah ABDELSADEK / `abdallah-master` | Group Verifier and scenario runner: direct-method delivery/lifecycle reports, order/content checks and membership-aware expected deliveries. Configurable periodic sends, 0 ms burst mode and repeatable failure scenarios. | Integration scenarios for resurrection/reinsertion and voluntary joins/leaves, with both explicit and random failures. Check that missed messages are never replayed. Document test commands and pass/fail results. |
+
+### Integration and shared work
+
+- Before coding, all four members will agree on the Actor, Group, TOM and
+  Verifier interfaces, message identities and lifecycle notifications.
+- Arhan will provide runtime failure events; Adam will turn them into group
+  notifications. Adam and Youssef will jointly define when a membership
+  change takes effect and which pending messages may be delivered. Removing
+  a dead member from an ACK list alone is not a complete recovery protocol.
+- For resurrection and dynamic membership, Arhan owns task recreation, Adam
+  owns membership admission/removal, Youssef owns ordering across the change,
+  and Abdallah owns verification of the resulting delivery intervals. No
+  returning actor may receive messages missed while it was dead.
+- Abdallah maintains the common test runner, but each member writes their
+  component tests and fixes defects in their own part. All four members will
+  run and review the integration scenarios.
+- We will integrate in the assignment's order: no failures; failures without
+  reinsertion; resurrection/reinsertion; voluntary joins and departures.
+- Each member commits and merges under their own identity. Work is integrated
+  into `project-master`; the tested final version is merged into `master`.
+  Completed contributions and test results will be recorded here as we finish.
 
