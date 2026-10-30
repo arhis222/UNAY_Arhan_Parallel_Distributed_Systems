@@ -91,7 +91,14 @@ public class TomProcess implements TotalOrderMulticast {
   }
 
   private void tryDeliver() {
-    return;
+	    while (!pending.isEmpty()) {
+	      TomMessage first = pending.peek();
+	      pending.poll();
+	      acks.remove(first.id());
+
+	      if (listener != null)
+	        listener.delivered(first.sender, first.payload);
+	    }
   }
 
 }
