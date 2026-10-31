@@ -27,7 +27,7 @@ public class TomProcess implements TotalOrderMulticast {
   // DATA received and not delivered yet
   private final PriorityQueue<TomMessage> pending = new PriorityQueue<TomMessage>();
 
-  // for each message id, who acknowledged it ACKss
+  // for each message id, who acknowledged it ACK
   private final Map<String, Set<Integer>> acks = new HashMap<String, Set<Integer>>();
 
   private final Set<String> seen = new HashSet<String>();   // ids of the DATA already received
@@ -91,14 +91,19 @@ public class TomProcess implements TotalOrderMulticast {
   }
 
   private void tryDeliver() {
-	    while (!pending.isEmpty()) {
-	      TomMessage first = pending.peek();
-	      pending.poll();
-	      acks.remove(first.id());
+    while (!pending.isEmpty()) {
+      TomMessage first = pending.peek();
+      Set<Integer> ackedBy = acks.get(first.id());
 
-	      if (listener != null)
-	        listener.delivered(first.sender, first.payload);
-	    }
+      if (ackedBy == null || !ackedBy.containsAll(members))
+        return;
+  
+      pending.poll();
+      acks.remove(first.id());
+
+      if (listener != null)
+        listener.delivered(first.sender, first.payload);
+    }
   }
 
 }
