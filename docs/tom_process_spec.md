@@ -13,7 +13,8 @@ without failures for now.
 
 - `self`: id of this member.
 - `incarnation`: 1 at the start, goes up if the actor is resurrected.
-- `members`: ids of all the members of the group, including `self`.
+- `members`: ids of all the members of the group, including `self`. The
+  constructor throws if `self` is not in it, and keeps its own copy of the set.
 - `transport`: gives `send(to, packet)`, to send a packet to a member. It must
   also work for `to == self`.
 

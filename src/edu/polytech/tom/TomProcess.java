@@ -33,9 +33,12 @@ public class TomProcess implements TotalOrderMulticast {
   private final Set<String> seen = new HashSet<String>();   // ids of the DATA already received
 
   public TomProcess(int self, int incarnation, Set<Integer> members, Transport transport) {
+    if (!members.contains(self))
+      throw new IllegalArgumentException("member " + self + " is not in the group " + members);
+
     this.self = self;
     this.incarnation = incarnation;
-    this.members = members;
+    this.members = new HashSet<Integer>(members); 
     this.transport = transport;
   }
 
