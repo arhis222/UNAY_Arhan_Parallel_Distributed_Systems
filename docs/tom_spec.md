@@ -18,7 +18,8 @@ place in the order.
 - A link between two actors is FIFO and reliable, as long as both are alive.
 - `MessageQueue.send` can return `false` when the buffer is full. So for each
   destination we keep our own outgoing queue and retry in order. Messages on
-  one link must never be reordered.
+  one link must never be reordered. `TomProcess` does not do this itself, the
+  transport that talks to the real `MessageQueue` does.
 - Actors are fail-stop and the failure detector is perfect.
 - The group layer drops everything sent to or from a dead actor.
 
