@@ -111,5 +111,6 @@ The final runtime check also covers changing a task's failure flag and normal
 completion of an Actor's main and child tasks before suicide. The expanded
 RuntimeTest passed ten consecutive runs. All six test suites passed again
 with the Eclipse Java compiler and bundled Java runtime, including the
-channel and queue stress settings above. UTF-8 is now set in the project
-preferences so source encoding does not depend on the workspace default.
+channel and queue stress settings above. The tracked project preferences
+already specify UTF-8. The import still produced an encoding warning, so
+its workspace handling needs to be checked during the final UI validation.
