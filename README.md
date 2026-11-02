@@ -106,12 +106,17 @@ enable assertions. These are channel and queue tests, not the project TOM tests.
 | --- | --- |
 | Existing channel and queue tests | Passed locally, including queue stress test; see docs/runtime_design.md |
 | Logical clocks and Actor lifecycle | RuntimeTest passed locally; see docs/runtime_design.md |
-| Groups and membership | Not implemented yet |
+| Groups and membership | Code and GroupTest are on adam-master; not yet integrated or validated here |
 | TOM without failures | Existing TomMessageTest and TomProcessTest passed; Actor/runtime integration remains |
-| TOM with failures, no reinsertion | Not implemented yet |
+| TOM with failures, no reinsertion | Standalone LEFTOVER protocol tests passed after merging Arhan's runtime checks; Group/Actor integration remains |
 | TOM with resurrection and reinsertion | Not implemented yet |
 | TOM with dynamic membership | Not implemented yet |
 | Fresh Eclipse workspace import | Commit 1855c18 imported and built in Eclipse 2026-09; six test suites passed on its class files. UI launch and final integrated submission remain to be checked; see docs/runtime_design.md |
+
+After the runtime merge on 2 November 2026, RuntimeTest, TomMessageTest,
+TomProcessTest (including failures), ComplianceTests and the channel/queue
+stress tests all passed on the combined code. This is component validation;
+the full Group/TOM/Verifier scenarios are still required.
 
 Project test commands, sending-period settings and pass/fail results will be
 added here as the corresponding tests are implemented.
