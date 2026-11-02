@@ -140,6 +140,59 @@ public final class RuntimeTest {
     check(unexpected.get() == 0, "Failed actor executed its callback");
   }
 
+  private static void taskFailureFlag() throws Exception {
+    Task target = executor.newTask("flag-change");
+    CountDownLatch ran = new CountDownLatch(1);
+    CountDownLatch failed = new CountDownLatch(1);
+    AtomicInteger unexpected = new AtomicInteger();
+    onPump(() -> {
+      executor.configureFailures(1, 456);
+      target.set(new Task.Listener() {
+        public void failed(Task task, Throwable cause) { failed.countDown(); }
+        public void completed(Task task, Object result) { unexpected.incrementAndGet(); }
+      });
+      target.setCanFail(false);
+      target.post(() -> {
+        ran.countDown();
+        target.setCanFail(true);
+        target.post(unexpected::incrementAndGet);
+      });
+    });
+    try {
+      await(ran);
+      await(failed);
+      check(target.dead() && target.clock() == 1 && unexpected.get() == 0,
+          "Changing the failure flag did not protect or fail the task");
+    } finally {
+      executor.configureFailures(0, 456);
+    }
+  }
+
+  private static void completedActorTasks() throws Exception {
+    Actor[] actor = new Actor[1];
+    Task[] child = new Task[1];
+    AtomicInteger deaths = new AtomicInteger();
+    CountDownLatch completed = new CountDownLatch(1);
+    CountDownLatch died = new CountDownLatch(1);
+    onPump(() -> {
+      actor[0] = new Actor("completed-main", false);
+      actor[0].setListener((a, cause) -> { deaths.incrementAndGet(); died.countDown(); });
+      actor[0].post(() -> {
+        child[0] = Task.task().newTask("child");
+        child[0].post(() -> Task.task().exit(null));
+        Task.task().exit(null);
+      });
+    });
+    onPump(() -> actor[0].newTask("survivor").post(completed::countDown));
+    await(completed);
+    onPump(() -> check(child[0].dead() && !actor[0].dead() && deaths.get() == 0,
+        "Normal task completion failed the actor"));
+    actor[0].suicide();
+    await(died);
+    onPump(() -> check(actor[0].dead() && deaths.get() == 1,
+        "Actor could not die after its main task completed"));
+  }
+
   private static void concurrentPosts() throws Exception {
     CountDownLatch done = new CountDownLatch(1000);
     Task target = executor.newTask("concurrent");
@@ -249,6 +302,8 @@ public final class RuntimeTest {
       cancellation();
       actors();
       randomFailures();
+      taskFailureFlag();
+      completedActorTasks();
       concurrentPosts();
       queueClosure();
       delaysAndCompletion();

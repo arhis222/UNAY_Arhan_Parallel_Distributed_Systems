@@ -111,7 +111,7 @@ enable assertions. These are channel and queue tests, not the project TOM tests.
 | TOM with failures, no reinsertion | Not implemented yet |
 | TOM with resurrection and reinsertion | Not implemented yet |
 | TOM with dynamic membership | Not implemented yet |
-| Fresh Eclipse workspace import | To be verified for the final project |
+| Fresh Eclipse workspace import | Commit 1855c18 imported and built in Eclipse 2026-09; six test suites passed on its class files. UI launch and final integrated submission remain to be checked; see docs/runtime_design.md |
 
 Project test commands, sending-period settings and pass/fail results will be
 added here as the corresponding tests are implemented.
@@ -122,7 +122,10 @@ added here as the corresponding tests are implemented.
 
 Arhan's runtime contribution adds per-task logical clocks, pending-event
 cancellation, actor-wide failure, configurable random failures and fresh
-Actor incarnations. Component tests and an Eclipse launcher are included.
+Actor incarnations. The runtime/Actor implementation and component tests are
+complete on `arhan-master`. Tests include failure-flag changes and suicide
+after normal task completion. The Eclipse compiler passes all six existing
+test suites; the expanded runtime test passed ten consecutive runs.
 Group admission and TOM clock integration remain separate team integration
 steps; this does not complete the fault-tolerant multicast.
 
