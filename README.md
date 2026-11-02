@@ -74,6 +74,9 @@ period down to 0 ms for burst mode.
 - `docs/project.pdf`: original project assignment.
 - `.project`, `.classpath`, `.settings/`: Eclipse project configuration.
 - `Teacher Tests.launch`, `Queue Tests.launch`: existing Eclipse test launchers.
+- `Runtime Tests.launch`: task clock, termination and Actor lifecycle tests.
+- [Runtime specification](docs/runtime_spec.md) and
+  [design](docs/runtime_design.md): Arhan's runtime and Actor contribution.
 - [lesson-only-arhans-personal/](lesson-only-arhans-personal/): Arhan's earlier
   individual coursework, including lecture PDFs, specifications and designs.
   These files are reference material, not the group's final project documents.
@@ -101,10 +104,10 @@ enable assertions. These are channel and queue tests, not the project TOM tests.
 
 | Test suite | Current status |
 | --- | --- |
-| Existing channel and queue tests | Not rerun for this project setup |
-| Logical clocks | Not implemented yet |
+| Existing channel and queue tests | Passed locally, including queue stress test; see docs/runtime_design.md |
+| Logical clocks and Actor lifecycle | RuntimeTest passed locally; see docs/runtime_design.md |
 | Groups and membership | Not implemented yet |
-| TOM without failures | Not implemented yet |
+| TOM without failures | Existing TomMessageTest and TomProcessTest passed; Actor/runtime integration remains |
 | TOM with failures, no reinsertion | Not implemented yet |
 | TOM with resurrection and reinsertion | Not implemented yet |
 | TOM with dynamic membership | Not implemented yet |
@@ -116,6 +119,12 @@ added here as the corresponding tests are implemented.
 ## Contributions
 
 ### Work already completed
+
+Arhan's runtime contribution adds per-task logical clocks, pending-event
+cancellation, actor-wide failure, configurable random failures and fresh
+Actor incarnations. Component tests and an Eclipse launcher are included.
+Group admission and TOM clock integration remain separate team integration
+steps; this does not complete the fault-tolerant multicast.
 
 Arhan UNAY completed the initial preparation for the group project:
 
