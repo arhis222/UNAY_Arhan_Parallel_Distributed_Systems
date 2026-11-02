@@ -22,168 +22,143 @@ import edu.polytech.queues.local.CQueueBroker;
 
 public class Executor extends Thread {
 
-  private class Event {
-    CTask task;
-    Runnable r;
-    long eta;
-    Event next;
+  private static class Event {
+    final CTask task;
+    final Runnable runnable;
+    final long due;
+    final long order;
 
-    Event(CTask t, Runnable r) {
-      this.task = t;
-      this.r = r;
-    }
-
-    Event(Event last, CTask t, Runnable r) {
-      this.task = t;
-      this.r = r;
-      last.next = this;
-    }
-
-    Event(CTask t, Runnable r, long eta) {
-      this.task = t;
-      this.r = r;
-      this.eta = eta;
-    }
-
-    Event(Event prev, CTask t, Runnable r, long eta) {
-      this.task = t;
-      this.r = r;
-      this.eta = eta;
-      this.next = prev.next;
-      prev.next = this;
-    }
-
-    Event(CTask t, Runnable r, long eta, Event next) {
-      this.task = t;
-      this.r = r;
-      this.eta = eta;
-      this.next = next;
+    Event(CTask task, Runnable runnable, long due, long order) {
+      this.task = task;
+      this.runnable = runnable;
+      this.due = due;
+      this.order = order;
     }
   }
 
-  static Executor self;
-  static {
-    self = new Executor();
-    self.start();
-  }
+  private static final Executor self = new Executor();
+  static { self.start(); }
 
-  public static Executor self() {
-    return self;
-  }
-
-  static boolean VERBOSE = true;
-
-  static void log(String s) {
-    if (VERBOSE)
-      System.out.println(s);
-  }
-
-  static void log(String s, Throwable cause) {
-    if (VERBOSE) {
-      System.err.println(s);
-      cause.printStackTrace(System.err);
-    }
-  }
-
-  Task task;
-  Event queue, last;
-  Event delayed;
+  private final java.util.ArrayDeque<Event> ready = new java.util.ArrayDeque<>();
+  private final java.util.PriorityQueue<Event> delayed = new java.util.PriorityQueue<>(
+      (a, b) -> a.due == b.due ? Long.compare(a.order, b.order) : Long.compare(a.due, b.due));
+  private final java.util.Random random = new java.util.Random();
+  private double failureProbability;
+  private long sequence;
+  private CTask current;
+  private final CTask control;
 
   private Executor() {
     super("Event Pump");
-    self = this;
+    control = new CTask("runtime-control", this);
   }
+
+  public static Executor self() { return self; }
 
   public static Task task() {
-    return self.task;
+    return Thread.currentThread() == self ? self.current : null;
   }
 
+  static void log(String message, Throwable cause) {
+    System.err.println(message);
+    if (cause != null) cause.printStackTrace(System.err);
+  }
+
+  public synchronized void configureFailures(double probability, long seed) {
+    if (Double.isNaN(probability) || probability < 0 || probability > 1)
+      throw new IllegalArgumentException("Probability must be between 0 and 1");
+    failureProbability = probability;
+    random.setSeed(seed);
+  }
+
+  @Override
   public void run() {
     while (true) {
-      Event e = null;
-      while (e == null) {
-        long now = System.currentTimeMillis();
-        checkDelayed(now);
-        synchronized (this) {
-          if (queue == null)
-            sleep();
-          e = queue;
-          if (queue == last)
-            queue = last = null;
-          else
-            queue = queue.next;
+      Event event;
+      synchronized (this) {
+        for (;;) {
+          long now = System.nanoTime();
+          while (!delayed.isEmpty() && delayed.peek().due <= now)
+            ready.addLast(delayed.remove());
+          if (!ready.isEmpty()) break;
+          try {
+            if (delayed.isEmpty()) wait();
+            else {
+              long remaining = Math.max(1, delayed.peek().due - now);
+              wait(remaining / 1000000, (int) (remaining % 1000000));
+            }
+          } catch (InterruptedException ignored) {
+            // Recheck the queues.
+          }
         }
+        event = ready.removeFirst();
       }
-      task = e.task;
-      if (!task.dead()) {
-        try {
-          e.r.run();
-        } catch (Throwable th) {
-          task.fail(th);
-        }
-      }
-      task = null;
-    }
-  }
-
-  private void checkDelayed(long now) {
-    Event e = delayed;
-    while (e != null && e.eta <= now) {
-      post(e.task, e.r);
-      delayed = delayed.next;
-      e = delayed;
-    }
-  }
-
-  public void set(Task t, CQueueBroker qb) {
-    CTask task = (CTask) t;
-    task.set(qb);
-  }
-  
-  public void register(Task t, CMessageQueue mq) {
-    CTask task = (CTask) t;
-    task.register(mq);
-  }
-
-  public Task newTask(String name) {
-    CTask task = new CTask(name);
-    return task;
-  }
-
-  public void post(Task t, Runnable r) {
-    CTask task = (CTask) t;
-    if (last == null)
-      queue = last = new Event(task, r);
-    else
-      last = new Event(last, task, r);
-  }
-
-  public void post(Task t, Runnable r, int delay) {
-    CTask task = (CTask) t;
-    long eta = System.currentTimeMillis() + delay;
-    if (delayed == null)
-      delayed = new Event(task, r, eta);
-    else {
-      Event p = null, e = delayed;
-      while (e != null && e.eta <= eta) {
-        p = e;
-        e = e.next;
-      }
-      if (p == null) {
-        delayed = new Event(task, r, eta, delayed);
-      } else {
-        new Event(p, task, r, eta);
-      }
-    }
-  }
-
-  private void sleep() {
-    while (queue != null) {
+      current = event.task;
       try {
-        wait(100);
-        checkDelayed(System.currentTimeMillis());
-      } catch (InterruptedException ex) {
-        // nothing to do here.
+        if (!current.dead()) {
+          boolean fail;
+          synchronized (this) {
+            fail = current.canFail() && random.nextDouble() < failureProbability;
+          }
+          if (fail) current.fail(new IllegalStateException("Simulated task failure"));
+          else {
+            current.tick();
+            event.runnable.run();
+          }
+        }
+      } catch (CTask.Stopped stopped) {
+        // Explicit exit or failure ends the current callback.
+      } catch (Throwable cause) {
+        current.terminate(cause, null, true);
+      } finally {
+        current = null;
+      }
+    }
+  }
+
+  public void set(Task task, CQueueBroker broker) { ((CTask) task).set(broker); }
+  public void register(Task task, CMessageQueue queue) { ((CTask) task).register(queue); }
+  public Task newTask(String name) { return new CTask(name, this); }
+
+  public synchronized void post(Task task, Runnable runnable) {
+    enqueue(task, runnable, 0);
+  }
+
+  public synchronized void post(Task task, Runnable runnable, int delay) {
+    if (delay < 0) throw new IllegalArgumentException("Negative delay");
+    enqueue(task, runnable, delay);
+  }
+
+  private void enqueue(Task task, Runnable runnable, int delay) {
+    if (runnable == null) throw new NullPointerException("runnable");
+    if (task.dead()) return;
+    Event event = new Event((CTask) task, runnable,
+        System.nanoTime() + delay * 1000000L, sequence++);
+    if (delay == 0) ready.addLast(event);
+    else delayed.add(event);
+    notifyAll();
+  }
+
+  synchronized void discard(CTask task) {
+    ready.removeIf(event -> event.task == task);
+    delayed.removeIf(event -> event.task == task);
+    notifyAll();
+  }
+
+  public void kill(Task task) {
+    CTask target = (CTask) task;
+    control(() -> target.terminate(new IllegalStateException("Task killed"), null, true));
+  }
+
+  public void control(Runnable action) {
+    if (action == null) throw new NullPointerException("action");
+    if (Thread.currentThread() == this) {
+      action.run();
+      if (current != null && current.dead()) throw new CTask.Stopped();
+    } else {
+      synchronized (this) {
+        ready.addFirst(new Event(control, action, 0, sequence++));
+        notifyAll();
       }
     }
   }

@@ -16,19 +16,21 @@ We will use Arhan UNAY's existing SAR course repository:
 
 ## Branches and submission
 
-- Default project branch: `project-master`.
-- Final project version: `project-master`.
+- Default and shared development branch: `project-master`.
+- Final submission branch: `master`.
 - Earlier coursework: `lesson-arhan-personal-master`.
 - Deadline stated in the course email: 8 November 2026, before midnight.
 
-The completed project will be merged into `project-master` before the deadline.
+Members will merge their work into `project-master`. The completed and tested
+project will then be merged into `master` before the deadline. The professor
+should use `master` to evaluate the final submission, as required by the PDF.
+For now, `master` contains the initial project setup; it is not a finished
+submission.
+
 `lesson-arhan-personal-master` was Arhan UNAY's original `master` branch for
 individual SAR coursework before the group project. It preserves that work
 separately from the group's project branch.
 
-The assignment PDF specifies `main` or `master` for submission. Our chosen
-branch name, `project-master`, differs from that requirement and needs to be
-confirmed with the professor before final submission.
 Each member will also work on a personal branch and contribute commits and
 merges under their own Git identity.
 
@@ -72,17 +74,18 @@ period down to 0 ms for burst mode.
 - `docs/project.pdf`: original project assignment.
 - `.project`, `.classpath`, `.settings/`: Eclipse project configuration.
 - `Teacher Tests.launch`, `Queue Tests.launch`: existing Eclipse test launchers.
-- [specs.txt](specs.txt), [design.txt](design.txt): channel documentation.
-- [design_queues.txt](design_queues.txt), [specs_queue.pdf](specs_queue.pdf):
-  message queue documentation.
-- [specs_tom.txt](specs_tom.txt), [design_tom.txt](design_tom.txt): current TOM
-  specification and design from the coursework.
-- `specs_broadcast.txt`, `design_broadcast.txt`: reliable broadcast.
-- `specs_causal.txt`, `design_causal.txt`: causal multicast coursework.
-- `specs_pannes.txt`, `design_pannes.txt`, `specs_mutex.txt`, `design_mutex.txt`:
-  token and distributed mutex coursework.
+- `Runtime Tests.launch`: task clock, termination and Actor lifecycle tests.
+- [Runtime specification](docs/runtime_spec.md) and
+  [design](docs/runtime_design.md): Arhan's runtime and Actor contribution.
+- [lesson-only-arhans-personal/](lesson-only-arhans-personal/): Arhan's earlier
+  individual coursework, including lecture PDFs, specifications and designs.
+  These files are reference material, not the group's final project documents.
+- [Coursework TOM specification](lesson-only-arhans-personal/specs_tom.txt)
+  and [design](lesson-only-arhans-personal/design_tom.txt): starting references
+  for the project.
+- `docs/`: project assignment and future group specification/design documents.
 
-The existing TOM documents are preliminary. They must be adapted to the
+The coursework TOM documents are preliminary. They must be adapted to the
 project brief, especially the local task runtime, dynamic membership and the
 rule that messages missed during a failure are never replayed to that actor.
 
@@ -101,10 +104,10 @@ enable assertions. These are channel and queue tests, not the project TOM tests.
 
 | Test suite | Current status |
 | --- | --- |
-| Existing channel and queue tests | Not rerun for this project setup |
-| Logical clocks | Not implemented yet |
+| Existing channel and queue tests | Passed locally, including queue stress test; see docs/runtime_design.md |
+| Logical clocks and Actor lifecycle | RuntimeTest passed locally; see docs/runtime_design.md |
 | Groups and membership | Not implemented yet |
-| TOM without failures | Not implemented yet |
+| TOM without failures | Existing TomMessageTest and TomProcessTest passed; Actor/runtime integration remains |
 | TOM with failures, no reinsertion | Not implemented yet |
 | TOM with resurrection and reinsertion | Not implemented yet |
 | TOM with dynamic membership | Not implemented yet |
@@ -115,10 +118,69 @@ added here as the corresponding tests are implemented.
 
 ## Contributions
 
-| Member | Work |
-| --- | --- |
-| Arhan UNAY | Existing course repository, channel and queue work, initial documentation and project setup |
-| Adam TAWFIK | Project tasks to be assigned |
-| Youssef KIRLOS | Project tasks to be assigned |
-| Abdallah ABDELSADEK | Project tasks to be assigned |
+### Work already completed
+
+Arhan's runtime contribution adds per-task logical clocks, pending-event
+cancellation, actor-wide failure, configurable random failures and fresh
+Actor incarnations. Component tests and an Eclipse launcher are included.
+Group admission and TOM clock integration remain separate team integration
+steps; this does not complete the fault-tolerant multicast.
+
+Arhan UNAY completed the initial preparation for the group project:
+
+- Provided his existing SAR course repository and the channel and message
+  queue implementations developed during the course as the starting code.
+- Prepared the earlier specification and design documents, including the
+  initial TOM design, and organised these references in
+  `lesson-only-arhans-personal/`.
+- Set up the Eclipse project configuration and the existing channel and queue
+  test launchers. The final project still needs a fresh-workspace import check.
+- Initialised the group project, added the assignment in `docs/project.pdf`
+  and prepared the README with group members and submission instructions.
+- Organised the shared development branch, personal branches and final
+  submission branch, while preserving the original coursework branch.
+- Prepared the initial task allocation and integration plan for the group.
+
+### Project coordination
+
+Arhan UNAY is the group's contact member and repository maintainer. Alongside
+his implementation tasks below, he will coordinate communication with the
+professor, track progress with the group and organise integration and final
+submission. Each member remains responsible for their own code, tests,
+documentation, commits and merges.
+
+### Planned project responsibilities
+
+The following is our task allocation, not a record of completed work. Each
+member is responsible for the implementation, specification/design notes and
+tests for their part. We will share the failure and recovery work because it
+affects both membership and message ordering.
+
+| Member / branch | Main implementation | Tests and documentation |
+| --- | --- | --- |
+| Arhan UNAY / `arhan-master` | Task runtime and Actor lifecycle: per-task logical clocks, cancelling pending runnables, actor suicide, random failures and the per-task failure flag. Stop all tasks belonging to a failed actor and create fresh tasks on resurrection. | Clock and termination tests, including pending callbacks after death. Runtime/Actor specification and design. Coordinate integration and verify the final Eclipse import. |
+| Adam TAWFIK / `adam-master` | Group layer: initial N-member formation through the group manager, peer links, perfect failure detection and membership listeners. Drop traffic to/from dead members. Manage join, leave and reinsertion requests. | Group formation and membership tests, including delayed traffic from dead actors. Group specification and design. Implement agreed membership transitions jointly with Youssef. |
+| Youssef KIRLOS / `youssef-master` | TOM ordering: message identities, Lamport timestamps, ordered pending queue, acknowledgements and delivery. First implement the no-failure version, then adapt ordering and pending-message handling to actor failures. | No-failure and failure-without-reinsertion tests. Ordering specification and correctness argument. Define safe delivery boundaries for membership transitions jointly with Adam. |
+| Abdallah ABDELSADEK / `abdallah-master` | Group Verifier and scenario runner: direct-method delivery/lifecycle reports, order/content checks and membership-aware expected deliveries. Configurable periodic sends, 0 ms burst mode and repeatable failure scenarios. | Integration scenarios for resurrection/reinsertion and voluntary joins/leaves, with both explicit and random failures. Check that missed messages are never replayed. Document test commands and pass/fail results. |
+
+### Integration and shared work
+
+- Before coding, all four members will agree on the Actor, Group, TOM and
+  Verifier interfaces, message identities and lifecycle notifications.
+- Arhan will provide runtime failure events; Adam will turn them into group
+  notifications. Adam and Youssef will jointly define when a membership
+  change takes effect and which pending messages may be delivered. Removing
+  a dead member from an ACK list alone is not a complete recovery protocol.
+- For resurrection and dynamic membership, Arhan owns task recreation, Adam
+  owns membership admission/removal, Youssef owns ordering across the change,
+  and Abdallah owns verification of the resulting delivery intervals. No
+  returning actor may receive messages missed while it was dead.
+- Abdallah maintains the common test runner, but each member writes their
+  component tests and fixes defects in their own part. All four members will
+  run and review the integration scenarios.
+- We will integrate in the assignment's order: no failures; failures without
+  reinsertion; resurrection/reinsertion; voluntary joins and departures.
+- Each member commits and merges under their own identity. Work is integrated
+  into `project-master`; the tested final version is merged into `master`.
+  Completed contributions and test results will be recorded here as we finish.
 

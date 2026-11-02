@@ -10,6 +10,12 @@ public abstract class Task {
   public abstract void post(Runnable r, int delay);
   
   public abstract boolean dead();
+
+  public long clock() { throw new UnsupportedOperationException(); }
+  public long receiveClock(long timestamp) { throw new UnsupportedOperationException(); }
+  public boolean canFail() { return false; }
+  public void setCanFail(boolean value) { throw new UnsupportedOperationException(); }
+  public void kill() { Executor.self().kill(this); }
     
   public abstract Task newTask(String name);
   public abstract QueueBroker newBroker(String name);
