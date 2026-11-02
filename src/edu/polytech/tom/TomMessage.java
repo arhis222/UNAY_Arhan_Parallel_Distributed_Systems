@@ -52,15 +52,15 @@ public class TomMessage implements Comparable<TomMessage> {
 	    
 	    for (int i = 0; i < packets.length; i++) {
 	      packets[i] = datas.get(i).toBytes();
-	      size += packets[i].length;
+	      size += 4 + packets[i].length;
 	    }
 
 	    ByteBuffer b = ByteBuffer.allocate(size);
 	    b.putInt(packets.length);
 	    
 	    for (byte[] packet : packets) {
-	      b.put(packet);
 	      b.putInt(packet.length);
+	      b.put(packet);
 	    }
 	    
 	    return new TomMessage(LEFTOVER, dead, 0, 0, 0, from, clock, b.array());
