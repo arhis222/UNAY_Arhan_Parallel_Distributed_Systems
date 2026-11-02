@@ -95,6 +95,21 @@ existing channel ComplianceTests passed. The channel echo test passed with
 test passed with one client sending one byte, and with 8 clients making
 10 connections each and sending 65536 bytes per connection.
 
-Eclipse project and launch XML files were checked, including their project
-names and main classes. Eclipse is not installed on the test machine, so
-importing into a fresh workspace still needs to be tested.
+On 2 November 2026, a clean copy of commit 1855c18 was imported into a new
+Eclipse 2026-09 workspace on macOS ARM64, using the existing project files.
+Eclipse generated the class files without changing the build configuration.
+The project reported a warning about its unspecified text encoding.
+
+RuntimeTest, the channel and queue launch configurations, TomMessageTest,
+TomProcessTest and ComplianceTests all passed using these Eclipse-built
+classes and the Java runtime bundled with Eclipse. The tests were started
+from the terminal because UI automation timed out after import. Running the
+launch configurations from the Eclipse UI still needs to be checked. The
+final integrated submission will also need a fresh import test.
+
+The final runtime check also covers changing a task's failure flag and normal
+completion of an Actor's main and child tasks before suicide. The expanded
+RuntimeTest passed ten consecutive runs. All six test suites passed again
+with the Eclipse Java compiler and bundled Java runtime, including the
+channel and queue stress settings above. UTF-8 is now set in the project
+preferences so source encoding does not depend on the workspace default.
