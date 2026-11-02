@@ -50,13 +50,18 @@ When member `q` is told that `p` died:
 
 1. Remove `p` from the members. Its ACKs are not needed any more.
 2. Ignore what arrives from `p` from now on.
-3. Send the new LEFTOVER(`p`) packet to every survivor. It contains the DATA from `p` that `q`
-   has received and not delivered yet.
+3. Send the new LEFTOVER(`p`) packet to every survivor. It contains the DATA from the dead members (`p` and the
+   ones that died before) that `q` has received and not delivered yet.
 4. Stop delivering until a LEFTOVER(`p`) has arrived from every survivor.
 5. When a LEFTOVER arrives, every DATA in it that `q` does not know is handled like a DATA received normally: put in the queue, and acknowledged to all.
 6. When all the LEFTOVER packets have arrived, deliver again, as in step 1.
 
 During the wait, `q` still receives DATA and ACK, and still can multicast. It just does not deliver.
+
+Two cases to handle:
+
+- A LEFTOVER about `p` can arrive before `q` is told that `p` died. `q` keeps it, like an ACK that arrives before its DATA, and counts it when the death arrives.
+- A survivor can die while it sends its LEFTOVER, so only some members get it. If `q` waits for the LEFTOVER of a survivor that dies, `q` stops waiting for it. And because a LEFTOVER carries the DATA of all the dead members, the new round sends again to everybody what the first one did not reach.
 
 ## 6. Example
 
@@ -69,3 +74,15 @@ Members 1, 2 and 3. Member 1 multicasts `m` and dies after sending it to member 
 4. Member 3 receives the LEFTOVER of 2: `m` is new, so it queues it and acknowledges it to 2 and 3. Member 2 receives the LEFTOVER of 3: nothing new.
 
 5. Both have all the LEFTOVER packets, both have the ACK of 2 and 3 for `m`: both deliver `m`.
+
+## 7. Why it is correct
+
+- A message delivered by a member had the ACK of everybody, so every member already has it. There is no need to send it again in a LEFTOVER.
+
+- After the LEFTOVER of all the members still alive, each one has all the DATA of the dead members that any of them had. So they all have the same messages.
+
+- A DATA that no member alive has was never delivered by anyone alive, because delivering needs the ACK of everybody.
+
+- We deliver nothing until all the LEFTOVER have arrived.
+
+- Before the death, nobody could pass a DATA of `p` that it does not have: `p` sends its ACK for a later message after that DATA on the same link, and a link never skips a packet. A member that lacks the DATA also lacks that ACK, so it cannot deliver what comes after.
