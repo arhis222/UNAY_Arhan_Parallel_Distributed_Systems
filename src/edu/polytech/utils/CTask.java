@@ -1,130 +1,131 @@
 package edu.polytech.utils;
 
-import java.util.Iterator;
-import java.util.LinkedList;
+import java.util.ArrayList;
 import java.util.List;
-
 import edu.polytech.queues.QueueBroker;
 import edu.polytech.queues.Task;
 import edu.polytech.queues.local.CMessageQueue;
 import edu.polytech.queues.local.CQueueBroker;
 
 public class CTask extends Task {
-  Executor e;
-  QueueBroker broker;
-  String name;
-  boolean failed, completed;
-  Listener l;
-  Task tl;
-  Object result;
-  Throwable cause;
+  public interface Owner {
+    void taskFailed(CTask task, Throwable cause);
+    Task newTask(String name);
+  }
 
-  CTask(String name) {
+  static final class Stopped extends Error {
+    private static final long serialVersionUID = 1L;
+  }
+
+  private final Executor executor;
+  private final String name;
+  private final List<CMessageQueue> queues = new ArrayList<>();
+  private volatile boolean dead;
+  private volatile boolean canFail;
+  private volatile long clock;
+  private QueueBroker broker;
+  private Listener listener;
+  private Task listenerTask;
+  private Owner owner;
+
+  CTask(String name, Executor executor) {
+    if (name == null) throw new NullPointerException("name");
     this.name = name;
-    this.e = Executor.self();
+    this.executor = executor;
   }
 
-  @Override 
-  public String toString() {
-    return "Task "+name;
-  }
-  
-  public void set(QueueBroker qb) {
-    if (broker != null)
-      throw new IllegalStateException("Task " + name + " has a broker already.");
-    broker = qb;
+  public void setOwner(Owner owner) {
+    Executor.check();
+    if (this.owner != null || dead) throw new IllegalStateException("Task already owned or dead");
+    this.owner = java.util.Objects.requireNonNull(owner);
   }
 
-  @Override
-  public void post(Runnable r) {
-    if (!dead())
-      e.post(this, r);
+  public void set(QueueBroker broker) {
+    Executor.check();
+    if (this.broker != null || dead) throw new IllegalStateException("Task already has a broker or is dead");
+    this.broker = broker;
   }
 
-  @Override
-  public void post(Runnable r, int delay) {
-    if (!dead())
-      e.post(this, r, delay);
-  }
+  @Override public String toString() { return "Task " + name; }
+  @Override public String getName() { return name; }
+  @Override public QueueBroker getBroker() { return broker; }
+  @Override public boolean dead() { return dead; }
+  @Override public long clock() { return clock; }
+  @Override public boolean canFail() { return canFail; }
+  @Override public void setCanFail(boolean value) { canFail = value; }
+  @Override public void post(Runnable runnable) { executor.post(this, runnable); }
+  @Override public void post(Runnable runnable, int delay) { executor.post(this, runnable, delay); }
 
-  @Override
-  public QueueBroker getBroker() {
-    return broker;
-  }
+  void tick() { clock = Math.addExact(clock, 1); }
 
   @Override
-  public String getName() {
-    return name;
-  }
-
-  @Override
-  public boolean dead() {
-    return failed || completed;
+  public long receiveClock(long timestamp) {
+    Executor.check();
+    if (Task.task() != this || dead) throw new IllegalStateException("Not the running task");
+    if (timestamp < 0) throw new IllegalArgumentException("Negative timestamp");
+    clock = Math.addExact(Math.max(clock, timestamp), 1);
+    return clock;
   }
 
   @Override
   public Task newTask(String name) {
-    return new CTask(name);
+    Executor.check();
+    if (dead) throw new IllegalStateException("Dead task");
+    return owner == null ? executor.newTask(name) : owner.newTask(name);
+  }
+
+  @Override public QueueBroker newBroker(String name) { return new CQueueBroker(name); }
+
+  @Override
+  public void set(Listener listener) {
+    Executor.check();
+    if (dead) throw new IllegalStateException("Dead task");
+    listenerTask = Task.task();
+    this.listener = listener;
   }
 
   @Override
-  public QueueBroker newBroker(String name) {
-    return new CQueueBroker(name);
+  public void fail(Throwable cause) {
+    Executor.check();
+    terminate(cause, null, true);
+    Task current = Task.task();
+    if (current != null && current.dead()) throw new Stopped();
   }
 
   @Override
-  public void set(Listener l) {
-    if (failed || completed)
-      throw new IllegalStateException("Dead task");
-    this.tl = Task.task();
-    this.l = l;
+  public void exit(Object result) {
+    Executor.check();
+    terminate(null, result, false);
+    if (Task.task() == this) throw new Stopped();
   }
 
-  @Override
-  public void fail(Throwable th) {
-    if (failed)
-      throw new Error("PANIC: failed task");
-    failed = true;
-    cause = th;
-    done();
-  }
-
-  @Override
-  public void exit(Object o) {
-    if (failed || completed)
-      throw new IllegalStateException("Dead task");
-    completed = true;
-    result = o;
-    done();
-  }
-
-  /*
-   * Really important to have this method because it is possible that a runnable
-   * on this task invoked exit, but failed afterwards.
-   */
-  private void done() {
-    Iterator<CMessageQueue> i = queues.iterator();
-    while (i.hasNext()) {
-      CMessageQueue mq = i.next();
-      mq.close();
-    }
-    Listener l = this.l;
-    if (l != null) {
-      tl.post(() -> {
-        if (failed)
-          l.failed(this, cause);
-        else
-          l.completed(this, result);
+  void terminate(Throwable cause, Object result, boolean failed) {
+    if (dead) return;
+    dead = true;
+    executor.discard(this);
+    // Propagate death before scheduling any surviving observer's callback.
+    if (failed && owner != null) owner.taskFailed(this, cause);
+    for (CMessageQueue queue : queues) queue.close();
+    queues.clear();
+    if (listener != null && listenerTask != null) {
+      Listener observer = listener;
+      listenerTask.post(() -> {
+        if (failed) observer.failed(this, cause);
+        else observer.completed(this, result);
       });
-    } else {
-      if (failed)
-        Executor.log("Failed task "+name, cause);
+    } else if (failed && owner == null) {
+      Executor.log("Failed task " + name, cause);
     }
   }
 
-  List<CMessageQueue> queues = new LinkedList<>();
+  public void stopWithOwner(Throwable cause) {
+    Executor.check();
+    terminate(cause, null, true);
+  }
 
-  void register(CMessageQueue mq) {
-    queues.add(mq);
+  void register(CMessageQueue queue) {
+    Executor.check();
+    if (dead) throw new IllegalStateException("Dead task");
+    queues.add(queue);
   }
 }
