@@ -6,6 +6,8 @@ Status: Draft for group review; extension contracts remain open
 
 Date: 1 November 2026
 
+Last revised: 4 November 2026
+
 ## 1. Purpose and authority
 
 The Group Verifier observes application deliveries and lifecycle events for
@@ -14,9 +16,12 @@ agreed multicast properties. The common scenario runner supplies finite
 workloads and lifecycle actions, collects the observations needed for checking,
 and reports the execution outcome.
 
-This document distinguishes three kinds of statement:
+This document distinguishes four kinds of statement:
 
 - **Assignment requirement (A):** imposed by `project.pdf`.
+- **Confirmed TOM agreement (C):** confirmed by Youssef, the TOM owner, and
+  relayed by Abdallah on 4 November 2026. This is an agreed component contract,
+  not an additional professor-provided requirement or evidence of integration.
 - **Proposed observation contract (P):** behavior proposed here so that the
   verifier and runner can be implemented and tested independently. These
   contracts require group review; they are not prescribed Java interfaces.
@@ -25,8 +30,9 @@ This document distinguishes three kinds of statement:
 
 Within this draft, “must” describes the contract being specified; the labels
 identify its authority. Section 4 is a complete proposed checking contract for
-a fixed group without failures. Section 7 does not resolve the open protocol
-semantics of failures and membership changes.
+a fixed group without failures. Section 7 records the confirmed survivor
+contract for failures without reinsertion; reinsertion and dynamic-membership
+semantics remain open.
 
 Sources:
 
@@ -39,6 +45,8 @@ Sources:
 - Coursework `specs_*.txt`: conventions for observable guarantees, assumptions,
   scope and explicit unresolved questions. Student recovery choices are not
   treated as assignment requirements.
+- Youssef's confirmed observation, survivor-agreement and completion contracts,
+  relayed by Abdallah on 4 November 2026, as marked **C** below.
 
 ## 2. Scope and responsibilities
 
@@ -95,9 +103,13 @@ of recipient reports and is never reconstructed from the first delivered copy.
 
 A message identity distinguishes separate multicasts even when their sender
 and payload bytes are identical. It remains unambiguous across actor
-incarnations. Its concrete representation and association with TOM identities
-require agreement with Youssef; this document does not prescribe fields or a
-Java type.
+incarnations. **C:** Youssef approved an application envelope containing the
+unique application message ID and payload; TOM treats these bytes as opaque.
+Application identity remains distinct from TOM's internal packet identity.
+Youssef plans a future PR returning TOM identity from `multicast()` and exposing
+it in delivery callbacks. That API is not currently available. Exact envelope
+encoding and adapter APIs are deferred; this specification prescribes no Java
+type and does not make the independent verifier depend on an envelope.
 
 The observations distinguish:
 
@@ -108,16 +120,25 @@ The observations distinguish:
 
 “Submission confirmation” is a **P** observation boundary, not an assignment
 requirement for a new protocol acknowledgement or public API. It does not depend
-on recipient deliveries. Its mapping to the existing multicast operation must
-be agreed with Youssef before integration.
+on recipient deliveries. The agreed real observation boundary is described
+below; its exact adapter API remains a later design step.
 
 For the baseline, the proposed submission contract must unambiguously confirm
 every valid multicast invoked by a live member of the established group.
-Confirmation must be independent of recipient deliveries and observable before
-any resulting delivery report. For independent baseline tests, each supplied
-valid invocation record is confirmed at invocation and creates its obligations
-immediately. Missing or uncertain confirmation cannot silently erase a planned
-workload item or permit a success verdict.
+For independent baseline tests, each supplied valid invocation record atomically
+registers and confirms the submission before any resulting delivery report and
+creates its obligations immediately. Missing or uncertain confirmation cannot
+silently erase a planned workload item or permit baseline success.
+
+**C — real adapter lifecycle:** Record the independent original immediately
+before invoking `multicast()`. Normal return while the actor remained alive
+confirms submission. If death prevents or interrupts invocation, retain the
+original and classify the outcome as uncertain; do not delete it or conclude
+that delivery is impossible. Delivery may be observed before normal return:
+the original must already be registered, but confirmation is a distinct later
+observation. A planned send whose invocation is prevented must remain accounted
+for explicitly. Section 7.5 governs uncertain submissions in failure scenarios;
+the baseline's atomic simulated behavior is unchanged.
 
 ### 3.3 Delivery reports
 
@@ -129,6 +150,12 @@ the multicast delivery order.
 Network reception, DATA buffering, ACK receipt and a successful transport send
 are not application deliveries. A sender reports its own application delivery
 through the same contract as every other receiver.
+
+**C:** The verifier checks all-or-none application delivery. It neither requires
+nor receives DATA-reception evidence. The protocol's internal rule about a
+survivor having DATA is a recovery mechanism, not an extra verifier obligation.
+Original identities and payloads still come from independent registration,
+never from delivery or reception reports.
 
 ### 3.4 Lifecycle and execution reports
 
@@ -143,6 +170,12 @@ an effective membership boundary.
 **P:** The runner also reports workload exhaustion, submissions that did not
 occur or were rejected/uncertain, unresolved lifecycle requests, execution
 interruption and the end of observation. Exact report signatures are deferred.
+
+**C:** For failures without reinsertion, a finished run has all deaths detected
+and no traffic left. **Q:** Adam/Youssef and the runner must agree how these
+facts are observed, including which reports establish completion. Empty verifier
+obligations or a quiet period alone do not establish that protocol traffic is
+exhausted.
 
 ## 4. Fixed group without failures
 
@@ -252,7 +285,9 @@ Workload generation starts after the relevant initial group is ready. Each
 planned send is accounted for independently of delivery. In the baseline, all
 planned sends must become confirmed submissions. In extensions, a send prevented
 by an actual death is distinguished from an invoked multicast whose outcome
-is uncertain; the applicable obligations depend on the agreed extension contract.
+is uncertain. Such outcomes retain their independent evidence and follow the
+failure-without-reinsertion contract in Section 7.5; reinsertion and dynamic
+membership still require further agreements.
 
 The sending period controls offered load, not a delivery deadline. Positive
 periods request periodic sends; the runner does not promise exact wall-clock
@@ -300,6 +335,9 @@ Budget exhaustion is incomplete unless an independent concrete violation has
 already established failure. It demonstrates failure to finish the scenario
 within its budget, not permanent message loss, actor death or impossibility
 of eventual delivery. A finite period of silence alone proves none of these.
+Missing mandatory survivor deliveries prevent success. Sending survivor
+messages may exercise progress, but does not by itself detect every possible
+stall or establish that no protocol traffic remains.
 
 ### 6.3 Conditions for progress
 
@@ -350,9 +388,10 @@ Reports without enough evidence for this distinction are insufficient for the
 affected check. A timeout is neither a death event nor a detector notification.
 
 **Q:** Arhan and Adam must agree on authoritative lifecycle observations and
-their relationship to application deliveries and peer notifications. Adam and
-Youssef must define which in-flight messages remain deliverable or obligatory
-when death and detection occur at different times.
+their relationship to application deliveries and peer notifications. For
+failures without reinsertion, final delivery obligations follow Section 7.5;
+the concrete detection/filtering observations still need integration agreement.
+Membership boundaries involving reinsertion, joins and departures remain open.
 
 ### 7.2 Resurrection versus effective reinsertion
 
@@ -407,25 +446,45 @@ This rule must also be exercised after the returning actor has resumed useful
 participation, rather than treating failure to reinsert it as a successful
 no-replay test.
 
-### 7.5 Failed senders and agreement strength
+### 7.5 Confirmed survivor contract: failures without reinsertion
 
-**Q — failed senders:** Which multicasts become obligatory if a sender dies
-during submission or partial dissemination? What must survivors do if some
-members received or delivered a message and others did not? An observed
-delivery must not be the only basis for the expected set, and an uncertain
-submission must not silently disappear. Youssef and Adam must define the
-protocol contract and its independent observable evidence.
+**C:** Agreement is non-uniform and concerns the actors that survive the run.
+Dead actors' histories are excluded from survivor agreement comparisons. At a
+completed execution, survivors must agree on delivered application identities,
+original content and order, with no duplicate deliveries.
 
-**Q — agreement strength:** Does agreement constrain only actors that remain
-correct, or also deliveries made by actors that subsequently fail (uniform
-agreement)? How does “correct” apply across incarnations and participation
-intervals? The coursework explicitly chooses a non-uniform interpretation;
-that student choice does not settle the final assignment. All members must
-review the requirement, with Arhan coordinating clarification if necessary.
+| Independently recorded message | Final survivor delivery requirement |
+| --- | --- |
+| Confirmed submission from a sender that survives | Every survivor must deliver it. |
+| Message from a dead sender | All survivors deliver it, or none do. |
+| Uncertain submission | The corresponding all-or-none survivor rule applies; retain its uncertainty and independent original evidence. |
 
-Until these questions are settled, an execution may provide useful partial
-evidence but cannot receive an unconditional success verdict for properties
-whose meaning depends on the unanswered questions.
+The mandatory set is independently established from confirmed submissions and
+surviving senders. Its absence from every history still prevents success.
+For each independently recorded dead-sender or uncertain message, delivery by
+some but not all survivors violates the final all-or-none contract. Delivery
+reports may establish the observed all-or-none outcome, but never supply the
+original content or turn an uncertain submission into a confirmed one.
+
+Do not blindly apply Section 4.3's fixed-group prefix comparison to intermediate
+failure states. These final survivor checks are separate from that unchanged
+baseline rule. During an unfinished run, missing mandatory deliveries and
+unsettled all-or-none outcomes remain unresolved; timeout without an established
+concrete violation is incomplete. At established completion, mandatory delivery,
+all-or-none delivery, integrity, uniqueness and final common order must hold.
+
+The failure contract permits the specified all-or-none treatment of uncertain
+submissions without erasing their uncertainty; Section 4.5's prohibition on
+uncertainty for baseline success is not silently transferred to this extension.
+Unavailable original/reporting evidence is still a separate obstacle to success.
+
+**Q:** The completion observation mechanism remains open: all deaths must be
+detected and no traffic remain. No DATA-reception hook is needed. Reinsertion,
+voluntary membership changes, participation boundaries and their agreement
+semantics are not settled by this survivor-only contract. If an execution
+depends on those unresolved rules, it cannot receive unconditional success
+for the affected properties. Total-group-loss completion behavior also remains
+an integration question; an empty survivor set alone must not create a pass.
 
 ## 8. Acceptance scenarios
 
@@ -449,7 +508,8 @@ components. Each member's component tests remain separate responsibilities.
 | Simulated | Different participation histories; established missed message delivered after reinsertion | Compare only contractually comparable histories; forbidden replay is unsuccessful. |
 | Integration | Stable group, multiple senders and finite payload workloads | All members, including each sender, deliver every confirmed multicast once with equal content and order. |
 | Integration | Long and short positive periods, then 0 ms burst | Finite workload completes with the same properties; burst allows protocol/report progress. |
-| Integration | Explicit suicide and random failure without reinsertion | Actual failures observed separately from detection; verify survivor obligations under the agreed failed-sender/agreement contracts. |
+| Simulated extension | Confirmed surviving-sender message omitted by everyone; dead-sender or uncertain message delivered by only some survivors | No pass: check independent mandatory obligations and final all-or-none delivery once completion is established. No DATA-reception evidence is required. |
+| Integration | Explicit suicide and random failure without reinsertion | Observe actual failures, detection and completion; require mandatory surviving-sender deliveries and final survivor identity/content/order agreement under Section 7.5. |
 | Integration | Death, traffic while dead, resurrection, effective reinsertion, further traffic | Reinsertion actually completes; missed-while-dead traffic never reappears and eligible later traffic is delivered. Exercise both failure modes. |
 | Integration | Voluntary join and departure while sending; combined lifecycle changes | Participation-aware checks and in-flight obligations follow agreed boundaries. Exercise positive periods and burst load. |
 | Integration | Interrupted run, expired budget, stalled transition or unmet coverage | Incomplete with outstanding work/evidence; never infer death from timeout or report a pass. |
@@ -464,9 +524,12 @@ supplied policy; they do not establish that the project protocol implements it.
 | --- | --- |
 | Arhan UNAY | Authoritative actual-death and resurrection observations; incarnation/task lifecycle semantics; explicit/random failure controls and protected tasks; clock/report ordering guarantees. Coordinate assignment clarification where needed. |
 | Adam TAWFIK | Meaning and timing of detection and effective membership reports; admission/removal/reinsertion boundaries; participation evidence. Agree in-flight behavior jointly with Youssef. |
-| Youssef KIRLOS | Message identity and delivery metadata; original payload ownership; observable submission confirmation; failed-sender obligations and order across transitions. Agree membership boundaries jointly with Adam. |
+| Youssef KIRLOS | Agreed envelope and real submission lifecycle: settle encoding/adapter details and completion evidence with Adam/Abdallah. Future TOM-identity API remains pending. Define reinsertion/dynamic-membership order and boundaries jointly with Adam. |
 | Abdallah ABDELSADEK | Refine this draft from the agreed contracts; confirm verdicts, workload controls, completion evidence and diagnostics with the team before design. |
 
-All four members must agree on agreement strength and the scope of supported
-failure/recovery executions. Approval of this draft does not approve an
-unspecified recovery algorithm or resolve the open questions by implication.
+The non-uniform agreement rule for failures without reinsertion is confirmed.
+All four members must still review the scope and semantics of reinsertion and
+dynamic-membership executions. Real Actor/Group/queue/TOM integration remains
+pending Adam/Youssef's work. Runtime/TOM identity mapping stays outside the
+independent verifier. These agreements do not implement a recovery algorithm
+or resolve the remaining questions by implication.

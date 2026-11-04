@@ -2,7 +2,7 @@
 
 Author: Abdallah ABDELSADEK
 
-Status: Stage 1 implemented; integration adapters remain proposals for group review
+Status: Stage 1 implemented; TOM observation/survivor contracts agreed; adapter design pending
 
 Date: 1 November 2026
 
@@ -13,8 +13,11 @@ Last revised: 4 November 2026
 This design implements the fixed-group, no-failure observation contract in
 [verifier_spec.md](verifier_spec.md), Sections 3–6 and the baseline simulated
 scenarios in Section 8. The specification remains authoritative. All classes,
-signatures, adapters and scheduling choices below are proposals, not changes
-to teammates' interfaces or additional assignment requirements.
+signatures, adapters and scheduling choices below are proposals unless explicitly
+identified as confirmed TOM agreements. The confirmed agreements were supplied
+by Youssef through Abdallah on 4 November 2026 and are marked **C** in the
+specification. They do not imply changes already made to teammates' interfaces
+or additional assignment requirements.
 
 The first version checks a nonempty, immutable group of actor incarnations and
 a finite workload. It observes direct method reports; it neither runs the
@@ -46,6 +49,9 @@ See `../src/edu/polytech/actors/Actor.java`,
 an implemented verifier or a working end-to-end scenario runner at that checkout.
 The subsequent stage-1 contribution implements only the independent verifier
 and simulated-report harness; actual results are in [verifier_tests.md](verifier_tests.md).
+Real Actor/Group/queue/TOM integration remains pending Adam/Youssef's work.
+The agreements below define observations for that later work, not implemented
+connections.
 
 ## 2. Small class and value model
 
@@ -186,8 +192,11 @@ In this baseline, `registerMulticast` represents the independently observed
 valid invocation boundary, not a protocol acknowledgement. It must precede
 every resulting delivery report, including synchronous/self delivery. It both
 records the original and confirms the invocation for the simulated baseline.
-Mapping this boundary onto the real `multicast` operation requires Youssef's
-agreement; no new public API, ACK or delivery-dependent confirmation is implied.
+This atomic simulated registration/confirmation remains unchanged. The agreed
+real lifecycle instead records the original immediately before invocation and
+confirms on normal return while the actor remained alive (Section 9.2). Exact
+adapter API changes belong to later design; no new protocol ACK or
+delivery-dependent confirmation is implied.
 
 `SubmissionIssue` contains `NOT_INVOKED`, `REJECTED` and `UNCERTAIN`. Before
 registration, an issue accounts for a slot that did not become a confirmed
@@ -199,7 +208,9 @@ roll it back into a successful no-send execution. A demonstrated rejection or
 failure to perform a required baseline invocation is a contract violation and
 is unsuccessful. An uncertain outcome caused solely by unavailable evidence
 prevents success and leads to incomplete closure unless another concrete
-violation exists. Extension-specific submission semantics are still open.
+violation exists. This describes baseline verdicts. The confirmed all-or-none
+rule for uncertain submissions in failures without reinsertion is separate
+(Section 10.1); reinsertion/dynamic-membership submission semantics remain open.
 
 Duplicate/conflicting slot accounting, out-of-range slots and reused message
 identities are observation errors. They do not overwrite earlier records.
@@ -295,6 +306,9 @@ summaries, not substitutes for identity-specific checks.
 
 ## 5. Execution states, closure and results
 
+The following states and assessment rules describe the implemented fixed-group,
+no-failure baseline, including its handling of simulated submission issues.
+The later failure extension has separate final survivor checks (Section 10.1).
 Keep execution phase separate from verdict:
 
 | Phase | Allowed normal activity |
@@ -399,6 +413,9 @@ and the original-registration boundary must be agreed before integration;
 lock acquisition order alone is not evidence of application order.
 
 ## 7. Core pseudocode
+
+This pseudocode describes stage 1's atomic simulated contract. It does not
+implement the real adapter lifecycle or final survivor checks described later.
 
 The following is behavioral pseudocode, not Java implementation. A demonstrated
 property or observation-contract violation adds a diagnostic and sets sticky
@@ -545,9 +562,9 @@ as accounting after closure, consistent with the one-time workload-close call.
 | Stage | Connection and evidence | Dependency |
 | --- | --- | --- |
 | 1. Independent verifier tests | Simulated registrations and reports exercise the checking/accounting contract directly, with no runtime, TOM or envelope dependency. | Abdallah can implement independently. |
-| 2. TOM with simulated transport | Connect the verifier to the real `TomProcess` using FIFO test transport and an agreed identity-reporting adapter. This is TOM-component integration, not a real Group scenario. | Youssef reviews the identity option; existing simulated transport is reusable. |
+| 2. TOM with simulated transport | Connect the verifier to the real `TomProcess` using FIFO test transport and the approved application-envelope option. This is TOM-component integration, not a real Group scenario. | Envelope encoding/adapter details still need design; existing simulated transport is reusable. |
 | 3. Real Actor/Group/queue integration | Route TOM through Actor tasks, actual Group readiness and real queues; add finite periodic/burst workloads, observation closure and watchdog assessment. | Adam supplies integrated Group/transport; Arhan and Youssef connect runtime/TOM clock and task contracts; Abdallah owns runner/report adapters. |
-| 4. Failure/reinsertion extensions | Begin with real failures without reinsertion, then effective reinsertion and voluntary membership scenarios under agreed participation rules. | Arhan supplies lifecycle support; Adam/Youssef agree and implement membership/order boundaries; Abdallah extends checking and coverage. |
+| 4. Failure/reinsertion extensions | Begin with real failures without reinsertion under the confirmed final survivor contract, then address reinsertion and voluntary membership under further agreements. | Arhan supplies lifecycle support; Adam/Youssef supply detection/completion observations and later membership/order boundaries; Abdallah extends checking and coverage. |
 
 Unresolved extension semantics do not block stage 1. Simulated TOM results
 must not be presented as evidence of the absent real-component connection.
@@ -558,9 +575,19 @@ The future runner retains the same core and supplies real observations through
 proposed `MulticastAdapter`, `DeliveryReportAdapter` and `VerifierMonitor`
 boundaries. These names describe responsibilities, not new teammate interfaces.
 It waits for actual initial-group readiness, then executes a finite number of
-sends per actor. It registers each original before invoking the existing
-multicast operation through the agreed boundary. Exceptions or uncertain
-invocations are recorded explicitly rather than inferred from deliveries.
+sends per actor. **Confirmed TOM agreement:** record the independent original
+immediately before invoking `multicast()`. Normal return while the actor remained
+alive confirms the submission. Death preventing or interrupting invocation
+leaves an uncertain outcome: retain the original and uncertainty; neither
+silently remove the record nor infer that delivery is impossible.
+
+Original registration and confirmation are separate real observations. A
+delivery callback may occur before normal return, so checking must have access
+to the original already, without deriving confirmation from that callback.
+The current baseline API combines these observations atomically for simulated
+tests and stays unchanged. The exact real adapter API and lifecycle-event
+ordering will be designed later; it must not misclassify death-related
+uncertainty as a proven baseline rejection or swallow runtime termination.
 
 For positive periods, schedule the next send as a posted periodic event. For
 0 ms, perform one send (or a bounded batch) per runnable and post its successor,
@@ -568,8 +595,12 @@ returning control between sends. Do not use an unbounded loop that monopolizes
 the shared executor. Whether the runtime guarantees fair progress for those
 posts must be checked with Arhan; this design does not fix runtime scheduling.
 Stop generation after finite counts, close workload, then continue observing
-outstanding deliveries. A runner-owned observation-close event follows the
-agreed reporting boundary; a quiet delay alone is not proof of completion.
+outstanding deliveries. For failures without reinsertion, Youssef defines a
+finished run as all deaths detected and no traffic left. The concrete mechanism
+that supplies reliable evidence of both conditions remains open with
+Adam/Youssef. Empty verifier obligations and a quiet period alone prove neither
+traffic exhaustion nor safe observation closure. A runner-owned close event
+must use the agreed reporting/completion evidence.
 
 A proposed watchdog uses a separate Java thread/timer and a monotonic elapsed
 budget (`System.nanoTime`), not an executor task. A lightweight executor progress
@@ -577,7 +608,10 @@ marker may aid diagnosis. If the executor stops advancing, the watchdog can
 detect lack of observed progress/budget expiry and publish an incomplete
 assessment through the monitor without relying on that executor to process
 another event. It must not declare an actor dead or claim the reason for the
-stall. It does not forcibly stop the executor or repair infrastructure.
+stall. It does not forcibly stop the executor or repair infrastructure. Sending
+messages from survivors may exercise progress, but is not a detector for every
+possible protocol stall, particularly when no mandatory obligations remain.
+Timeout without an established concrete violation is incomplete.
 
 The monitor must not hold a lock while the protocol executes, so protocol
 stalls cannot prevent assessment. Unexpected failure within the monitor/core
@@ -585,17 +619,20 @@ itself is reported as a harness error where possible and is never a successful
 scenario. Runner cleanup and process termination policy remain adapter design
 questions; the independent verifier needs neither.
 
-The current TOM listener exposes sender and payload but not full message
-identity. An agreed adapter or reporting hook is needed; matching by payload
-is invalid when two messages contain equal bytes. No teammate API is changed
-by this document.
+The current TOM listener exposes sender and payload but not full packet identity.
+Youssef plans to return TOM identity from `multicast()` and expose it in delivery
+callbacks in a future PR; that API is not available yet. The approved envelope
+can identify application messages through the existing opaque payload path.
+Matching solely by workload bytes is invalid when separate messages contain
+equal bytes. No teammate API is changed by this document.
 
-### 9.3 Proposed application identity envelope
+### 9.3 Approved application identity envelope; adapter details pending
 
-Pending Youssef's review, one integration option is to encode a runner-assigned
-application `MessageId` and the workload payload in the bytes passed to
-`multicast`. The adapter independently registers that identity and original
-content before invocation. At application delivery it captures the receiver
+Youssef approved an application envelope carrying a runner-assigned unique
+application `MessageId` and workload payload in the bytes passed to `multicast`.
+TOM treats those bytes as opaque. The adapter independently records that identity
+and original content immediately before invocation, with confirmation handled
+separately as in Section 9.2. At application delivery it captures the receiver
 identity from the installed listener, decodes the envelope, checks the callback
 sender against the declared origin and supplies the identity and observed
 workload bytes to the verifier. The adapter must validate envelope metadata
@@ -614,9 +651,10 @@ That additional check would require an agreed TOM observation hook.
 The envelope belongs only to an integration adapter. The baseline verifier's
 registration/delivery methods continue to accept identities and payload bytes
 directly; they neither encode nor decode envelopes and gain no TOM dependency.
-The envelope is optional: a reviewed delivery-metadata hook could instead
-satisfy the same specification contract. Neither option adds a protocol ACK
-or delivery-dependent submission confirmation.
+The envelope is the approved integration option; its encoding and adapter APIs
+remain to be designed. A future metadata hook must be reviewed before replacing
+it and must not conflate application and TOM packet identities. Neither approach
+adds a protocol ACK or delivery-dependent submission confirmation.
 
 ## 10. Extension points and unresolved integration questions
 
@@ -626,21 +664,54 @@ fixed-recipient obligation rule and baseline prefix comparison with agreed
 participation-aware rules. Do not expose mutable membership or implement a
 generic recovery-policy framework in the baseline.
 
+### 10.1 Agreed final survivor checks, without reinsertion
+
+The confirmed contract in specification Section 7.5 is non-uniform agreement
+among survivors. At established completion, every confirmed message from a
+sender that survives must appear at every survivor. Independently recorded
+messages from dead senders and uncertain submissions follow all-or-none
+application delivery across survivors. Keep uncertain originals and their
+uncertainty even when the observed outcome is all or none; application delivery
+does not retroactively confirm an invocation. Survivors' final histories must
+agree on application identities, original content and order, without duplicates.
+Dead actors' histories are excluded from these survivor agreement checks.
+
+These are separate final checks, not an instruction to apply stage 1's
+fixed-group prefix algorithm blindly during intermediate failure states. A
+later extension will derive mandatory survivor obligations from independent
+confirmed submissions and sender survival. It will evaluate optional all-or-none
+outcomes against independently recorded identities/originals, not reconstruct
+originals from whichever survivor reports first. An uncertain submission's
+all-or-none treatment is distinct from a reporting gap with unavailable evidence.
+The baseline's rule that uncertainty prevents its success remains unchanged.
+
+No DATA-reception evidence or hook is required. The protocol's internal
+“a survivor had it” rule belongs to recovery; the verifier checks application
+delivery only. Reliable completion evidence must establish all deaths detected
+and no traffic left. Until that mechanism is agreed, empty obligations or
+silence cannot establish completion. Missing mandatory survivor deliveries
+prevent success; an unfinished run timing out without a concrete violation
+is incomplete. Final partial all-or-none delivery or inconsistent survivor
+histories at established completion violates the agreed contract.
+
+### 10.2 Remaining integration and membership questions
+
 Actual death, detector notifications, resurrection and effective membership
-changes will require distinct observations. Their authoritative boundaries,
-failed-sender obligations and uniform/non-uniform agreement remain the open
-questions in specification Section 7. Unknown lifecycle behavior must not be
-silently processed as a successful no-failure scenario. Future failure scenarios
-must prove actual failure coverage; reinsertion scenarios must prove admission
-and eligible deliveries afterward, as well as no forbidden replay. This design
-does not select which in-flight messages qualify or design state transfer.
+changes still require distinct observations and agreed reporting order. Real
+Actor/Group/queue/TOM wiring remains pending Adam/Youssef. Reinsertion and
+dynamic-membership participation boundaries and agreement semantics remain
+unresolved; the survivor-only contract does not settle them. Future failure
+scenarios must prove actual failure coverage; reinsertion scenarios must prove
+admission and eligible deliveries afterward, as well as no forbidden replay.
+No state transfer or in-flight reinsertion policy is designed here. Runtime/TOM
+identity mapping remains outside the independent verifier.
 
 | Teammate | Remaining integration agreement |
 | --- | --- |
-| Youssef | Review the proposed application envelope or an alternative metadata hook; map independent registration/confirmation to multicast invocation; agree numeric identity mapping with Adam, preserve callback order and define synchronous delivery possibilities. No new protocol ACK is assumed. |
+| Youssef | Approved envelope and real submission lifecycle: settle encoding/adapter details and completion evidence with Adam/Abdallah. Future packet-identity API remains pending. Agree identity mapping, callback order and reinsertion/dynamic-membership ordering with Adam. No protocol ACK or DATA-reception hook is required. |
 | Arhan | Confirm executor posting/yield behavior, thread ownership and observation/watchdog boundary; later provide authoritative actor lifecycle and failure controls. Runtime fixes remain runtime work. |
 | Adam | Supply actual initial-group readiness, fixed member identities and the external Actor-name/numeric-ID mapping with Youssef; later define effective membership evidence jointly with Youssef. |
-| All members | Approve observation closure/report completeness, scenario coverage and diagnostic classification; resolve specification Section 7 before failure/dynamic-group integration. |
+| All members | Agree concrete completion/report-completeness evidence and remaining integration details; retain the confirmed survivor-only contract, and resolve reinsertion/dynamic-membership questions before those stages. |
 
 ## 11. Proposed class/API summary
 
