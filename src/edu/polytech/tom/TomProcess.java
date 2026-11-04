@@ -9,7 +9,7 @@ import java.util.PriorityQueue;
 import java.util.Set;
 
 /*
- * Totally-ordered multicast of one member, 1ST try without failures.
+ * Totally-ordered multicast of one member, with members that can die.
  */
 public class TomProcess implements TotalOrderMulticast {
 
@@ -29,13 +29,14 @@ public class TomProcess implements TotalOrderMulticast {
   // DATA received and not delivered yet
   private final PriorityQueue<TomMessage> pending = new PriorityQueue<TomMessage>();
 
-  // for each message id, who acknowledged it ACK
+  // for each message id, who acknowledged it
   private final Map<String, Set<Integer>> acks = new HashMap<String, Set<Integer>>();
 
-  private final Set<String> seen = new HashSet<String>();   // ids of the DATA already received
+  private final Set<String> seen = new HashSet<String>(); // ids of the DATA already received
 
-  private final Set<Integer> dead = new HashSet<Integer>(); // Dead members
+  private final Set<Integer> dead = new HashSet<Integer>(); // members that died
 
+  // for each dead member, who sent me a LEFTOVER about it
   private final Map<Integer, Set<Integer>> leftoverFrom = new HashMap<Integer, Set<Integer>>();
 
   public TomProcess(int self, int incarnation, Set<Integer> members, Transport transport) {
@@ -44,7 +45,7 @@ public class TomProcess implements TotalOrderMulticast {
 
     this.self = self;
     this.incarnation = incarnation;
-    this.members = new HashSet<Integer>(members); 
+    this.members = new HashSet<Integer>(members);
     this.transport = transport;
   }
 
@@ -61,12 +62,12 @@ public class TomProcess implements TotalOrderMulticast {
 
   /* To call when the group says that the member "id" is dead. */
   public void memberDied(int id) {
-    if (id == self || !members.remove(id))
+    if (!members.remove(id))
       return;
 
     dead.add(id);
+
     List<TomMessage> left = new ArrayList<TomMessage>();
-    
     for (TomMessage m : pending) {
       if (dead.contains(m.sender))
         left.add(m);
@@ -74,7 +75,7 @@ public class TomProcess implements TotalOrderMulticast {
 
     clock++;
     byte[] packet = TomMessage.leftover(id, self, clock, left).toBytes();
-    
+
     for (int member : members) {
       if (member != self)
         transport.send(member, packet);
@@ -87,7 +88,7 @@ public class TomProcess implements TotalOrderMulticast {
   /* To call for each packet that arrives for me */
   public void onPacket(byte[] packet) {
     TomMessage msg = TomMessage.fromBytes(packet);
-    
+
     if (dead.contains(msg.from))
       return;
 
@@ -127,7 +128,7 @@ public class TomProcess implements TotalOrderMulticast {
       if (!seen.contains(data.id()))
         receivedData(data);
     }
-    
+
     // left.sender is the member that died, left.from is who sent this LEFTOVER
     leftoverReceived(left.sender, left.from);
   }
@@ -170,7 +171,7 @@ public class TomProcess implements TotalOrderMulticast {
 
       if (ackedBy == null || !ackedBy.containsAll(members))
         return;
-  
+
       pending.poll();
       acks.remove(first.id());
 

@@ -72,11 +72,12 @@ public class TomMessageTest {
   }
 
   public static void main(String[] args) {
+	System.out.println("==== TOM Message TEST ====");
     testDataBytes();
     testAck();
     testLeftover();
     testId();
     testOrder();
-    System.out.println("TomMessageTest: all checks passed");
+    System.out.println("TomMessageTest: all tests passed");
   }
 }
