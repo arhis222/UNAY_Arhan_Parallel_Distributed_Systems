@@ -16,7 +16,7 @@ Only behavior differing from the expected result fails the test process.
 The separate `TomMessageTest` run below is a packet-representation regression
 check, not TOM integration. No teammate source was modified.
 
-## Toolchain and exact commands
+## Command-line toolchain and exact commands
 
 Commands ran from the repository root on `abdallah-master`, based on checkout
 `f00a619`, with the uncommitted design refinements preserved. The default system
@@ -57,7 +57,7 @@ temporary directory.
 /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-verifier-review.xbh0s5 edu.polytech.tom.tests.TomMessageTest
 ```
 
-## Actual results
+## Command-line results
 
 The review follow-up reran compilation and both suites on 4 November 2026.
 The verifier count increased from 23 to 49 groups because malformed delivery,
@@ -135,6 +135,40 @@ The packet regression ended with:
 TomMessageTest: all tests passed
 ```
 
+## User-performed manual Eclipse validation
+
+On 4 November 2026, **Abdallah ABDELSADEK** manually verified commit
+`fc7e574` in Eclipse IDE for Java Developers, version **2024-12 (4.34.0)**,
+build **20241128-0757**. This records the tester's supplied evidence; it is
+not an Eclipse check performed by the assistant.
+
+In the fresh workspace `sar-verification`, the tester used **File → Import →
+General → Existing Projects into Workspace**, selected the repository root,
+and left **Copy projects into workspace** unchecked. Eclipse detected
+`Arhan_UNAY_Channels`. No additional project configuration or dependency
+installation was needed. The build reported **0 errors and 25 warnings**.
+
+Both launch configurations were checked manually and used the project execution
+environment **JavaSE-1.8**, mapped to **Temurin 8.0.392**. Running the two entry
+points as Java Applications produced:
+
+| Entry point | Observed console result |
+| --- | --- |
+| `VerifierBaselineTest` | `VerifierBaselineTest: 49 simulated-report test groups passed` |
+| `TomMessageTest` | `TomMessageTest: all tests passed` |
+
+The tester inspected all 25 warnings: raw `Class`/`Constructor` generic types,
+associated type-safety warnings, and unused imports, fields or local variables
+in existing channel, queue and TOM test sources. None of the listed warnings
+points to `src/edu/polytech/verifier/`. No warning suppression or source changes
+were needed for this validation.
+
+Commit `fc7e574` therefore imported, built and ran these two test entry points.
+This does not establish that every project test passed or validate real
+multicast integration, failures, reinsertion or dynamic membership. The complete
+final submission must be checked again in a fresh Eclipse workspace after
+integration.
+
 ## Coverage and interpretation
 
 | Specification/design requirement | Evidence exercised |
@@ -193,9 +227,9 @@ the acceptance-case mapping. A test group can exercise several related traces.
   stress or exhaustive correctness proof.
 - The packet regression covers DATA/ACK/LEFTOVER representations. It establishes
   no multicast ordering, failure-detector or no-replay guarantee.
-- Eclipse configuration was not changed and a fresh Eclipse import/UI launch
-  was not performed for this contribution. Validation used the installed JDK 8
-  directly, with no generated files under the repository.
+- Command-line validation generated classes outside the repository. The separate
+  manual Eclipse check above validates import/build and the two stated entry
+  points at `fc7e574`; final integrated submission verification remains pending.
 
 Next agreements remain Youssef's application identity/registration boundary,
 Adam's Group readiness and transport, Arhan/Youssef's task/TOM clock connection,
