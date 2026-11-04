@@ -2,9 +2,11 @@
 
 Author: Abdallah ABDELSADEK
 
-Status: Proposed design for group review; no Java implementation
+Status: Stage 1 implemented; integration adapters remain proposals for group review
 
 Date: 1 November 2026
+
+Last revised: 4 November 2026
 
 ## 1. Scope and relation to the specification
 
@@ -24,6 +26,26 @@ existing Eclipse `src` directory, with no dependencies or build-system changes.
 Proposed packages are `edu.polytech.verifier` and
 `edu.polytech.verifier.tests`. No records, newer collection factories, runtime
 inheritance or TOM implementation classes are required.
+
+### 1.1 Current integration state
+
+At checkout `f00a619`, the runtime and Actors exist, including task clocks,
+task ownership, actor-wide death and fresh incarnations. `TomProcess` also
+exists, including DATA/ACK ordering and LEFTOVER handling for failures without
+reinsertion. Its current tests connect it through simulated FIFO links.
+
+The complete connection through Actor tasks, Group and real message queues
+is absent from this checkout. Group formation/readiness and membership code
+are not integrated here, no queue-backed TOM transport is supplied, and
+`TomProcess` still uses its own clock rather than task clock operations.
+Runtime/queue tests and standalone TOM tests therefore exercise separate paths.
+See `../src/edu/polytech/actors/Actor.java`,
+`../src/edu/polytech/tom/TomProcess.java`,
+`../src/edu/polytech/tom/tests/TomProcessTest.java`, and
+`runtime_design.md`, Integration API. These existing components do not imply
+an implemented verifier or a working end-to-end scenario runner at that checkout.
+The subsequent stage-1 contribution implements only the independent verifier
+and simulated-report harness; actual results are in [verifier_tests.md](verifier_tests.md).
 
 ## 2. Small class and value model
 
@@ -73,6 +95,21 @@ nonnegative. Equality uses every identity field, not payload, timestamp or
 object reference. The chosen numeric representation must be mapped to project
 identities with Youssef; this is not a prescribed TOM wire format.
 
+The proposed integration adapter maintains an explicit mapping from runtime
+`Actor.name()` to a stable numeric member ID within the scenario's group.
+It combines that number with `Actor.incarnation()` to construct the verifier's
+`ActorId`, and supplies the corresponding number/incarnation to TOM. Different
+active actor names must not alias the same numeric ID. Names are not assumed
+globally unique merely because the Actor constructor accepts them; the adapter
+validates the declared group mapping. Execution/group scope remains explicit
+in verifier message identities.
+
+This mapping stays outside the independent verifier, which accepts immutable
+identities without importing Actor or TOM classes. Independent tests supply
+those identities directly. How a numeric ID is retained or reused after a
+membership change remains an Adam/Youssef agreement, not a consequence of
+this baseline mapping.
+
 Distinct messages can contain equal payloads. No ordering comparator on these
 identities is used to determine delivery order. Sequence identifies a multicast;
 it is not the planned-send slot described below.
@@ -94,7 +131,7 @@ Proposed configuration shape:
 public BaselineScenario(String executionId, String groupId,
         Map<ActorId, Integer> plannedSends,
         boolean emptyWorkloadTest,
-        int minimumConfirmedMessages, int minimumValidDeliveries,
+        long minimumConfirmedMessages, long minimumValidDeliveries,
         int periodMillis, long budgetMillis);
 ```
 
@@ -111,6 +148,17 @@ Period and budget describe runner settings; the verifier does not sleep or
 interpret the period as a delivery deadline. Payload generation belongs to
 the harness/runner; registration preserves the actual original independently.
 The immutable configuration is retained in every result.
+
+Stage-1 refinement: coverage minima, aggregate planned/confirmed/delivery counts
+and report ordinals use `long`, with checked arithmetic for aggregate sums and
+products. Individual per-actor send counts and slot indexes remain `int`.
+Accounting stores only slots actually registered or assigned an issue, rather
+than preallocating the declared workload. Absent slots remain PLANNED and their
+count is obtained by subtraction. Result snapshots expose sparse accounted
+slots plus the unaccounted count, so a large unexecuted plan does not require
+enumerating billions of missing slots. Per-recipient histories use Java list
+indexes with an explicit capacity guard. These are storage/representation
+choices; checking requirements and completion criteria are unchanged.
 
 ## 3. Proposed verifier API and accounting
 
@@ -147,8 +195,11 @@ multicast; rejected/uncertain invocation evidence is retained in its diagnostic
 but is not promoted to confirmed by a delivery. If a registered invocation
 later becomes uncertain or rejected at an adapter boundary, attach the issue
 to that slot and retain its original and obligations. Do not erase evidence or
-roll it back into a successful no-send execution. This is an unsuccessful
-baseline execution; extension-specific submission semantics are still open.
+roll it back into a successful no-send execution. A demonstrated rejection or
+failure to perform a required baseline invocation is a contract violation and
+is unsuccessful. An uncertain outcome caused solely by unavailable evidence
+prevents success and leads to incomplete closure unless another concrete
+violation exists. Extension-specific submission semantics are still open.
 
 Duplicate/conflicting slot accounting, out-of-range slots and reused message
 identities are observation errors. They do not overwrite earlier records.
@@ -159,7 +210,10 @@ as unaccounted; they cannot be silently treated as sends that occurred.
 `recordObservationGap` records unavailable reporting evidence, prevents success
 and explains an incomplete assessment unless a concrete violation is already
 known. It does not invent the missing events. Calling it after observation
-closure is a late observation and supersedes an earlier success.
+closure records the newly known evidence gap and supersedes an earlier success
+with an incomplete assessment unless a concrete violation also exists. This
+differs from reporting an actual delivery or registration after closure, which
+demonstrates a late-event contract violation.
 
 ## 4. Internal state and checks
 
@@ -174,7 +228,8 @@ diagnostics is presentation only. Maintain:
   initially a copy of all members.
 - For each recipient, an ordered identity history and a map from identity to
   its first report position, for duplicate diagnostics.
-- A diagnostic list, sticky violation status, phase, report counter and valid
+- A diagnostic list, sticky concrete-violation status, reporting-gap evidence,
+  phase, report counter and valid
   unique delivery/confirmed-message counters for coverage.
 
 `RegisteredMessage` is a private nested state holder. Only its obligation set
@@ -256,7 +311,8 @@ outstanding set is only readiness evidence, never automatic final success.
 the execution without synthesizing deliveries, closing workload on the caller's
 behalf or inferring actor failure. The precedence is:
 
-1. A recorded protocol, observation or baseline submission-contract violation
+1. A demonstrated protocol-property, observation-contract or baseline
+   submission-contract violation
    yields `UNSUCCESSFUL`, regardless of close reason.
 2. Otherwise timeout/interruption yields `INCOMPLETE`, even if obligations happen
    to be empty; successful observation closure was not established.
@@ -292,9 +348,14 @@ mutable internals.
 
 | Category | Examples and meaning |
 | --- | --- |
-| Protocol property | Duplicate, content mismatch or incompatible order, assuming reports faithfully represent deliveries. |
-| Observation/configuration | Unknown identity/receiver, wrong run, invalid payload, reused identity/slot, late event or inconsistent submission evidence. Does not prove a TOM defect. |
-| Incomplete execution | Timeout, interrupted observation, unaccounted planned sends, missing deliveries or unmet coverage; does not prove death or permanent loss. |
+| Protocol property | Demonstrated duplicate, content mismatch or incompatible order, assuming reports faithfully represent deliveries; unsuccessful. |
+| Observation/configuration | Demonstrated unknown identity/receiver, wrong run, invalid payload, reused identity/slot, late event or contradictory submission evidence; unsuccessful, without proving a TOM defect. |
+| Incomplete execution | Unavailable evidence/reporting gap, uncertain submission without a proven violation, timeout, interruption, unaccounted planned sends, missing deliveries or unmet coverage; incomplete at closure unless a concrete violation also exists. Does not prove death or permanent loss. |
+
+Diagnostic presence alone does not set concrete-violation status. Unmet
+obligations and coverage always prevent a pass, but do not by themselves prove
+permanent message loss or protocol failure. Unavailable evidence is retained
+separately from demonstrated violations throughout accounting and assessment.
 
 Each diagnostic carries a stable code, execution/group, report ordinal,
 receiver/message/slot where applicable and a readable explanation. Duplicates
@@ -339,10 +400,12 @@ lock acquisition order alone is not evidence of application order.
 
 ## 7. Core pseudocode
 
-The following is behavioral pseudocode, not Java implementation. Every error
-adds a categorized diagnostic and sets sticky violation status. Basic validation
-precedes state mutation. Normal independent tests use confirmed invocation
-records directly.
+The following is behavioral pseudocode, not Java implementation. A demonstrated
+property or observation-contract violation adds a diagnostic and sets sticky
+concrete-violation status. Unavailable evidence/reporting gaps add incomplete
+evidence without setting that status. Outstanding obligations or unmet coverage
+also prevent success. Basic validation precedes state mutation. Normal
+independent tests use confirmed invocation records directly.
 
 ### 7.1 Register an independently observed multicast
 
@@ -352,7 +415,8 @@ registerMulticast(plannedIndex, id, original):
     require matching execution/group and sender in fixed members
     require sender/plannedIndex is a valid unused PLANNED slot
     require id not already registered
-    on any failed requirement: record observation error; return
+    on any failed requirement:
+        record demonstrated observation violation; return
 
     savedOriginal = copy(original)
     registered[id] = (savedOriginal, sender/plannedIndex,
@@ -365,30 +429,41 @@ registerMulticast(plannedIndex, id, original):
 
 ```text
 delivered(receiver, id, observed):
-    if phase CLOSED: record LATE_REPORT; return
+    if phase CLOSED: record demonstrated LATE_REPORT violation; return
     validate receiver, id context and observed bytes
-    on malformed/wrong-context input: record observation error; return
+    on malformed/wrong-context input:
+        record demonstrated observation violation; return
 
     savedObserved = copy(observed)
     k = history[receiver].size
     append id to history[receiver]
     duplicate = firstPosition[receiver] already contains id
-    if duplicate: record protocol duplicate with both positions
+    if duplicate: record demonstrated duplicate violation with both positions
     else: firstPosition[receiver][id] = k
 
     for each other receiver with history length > k:
         if history[other][k] != id:
-            record protocol order divergence at k
+            record demonstrated order-divergence violation at k
 
-    if id not registered: record unknown-message observation error; return
+    if id not registered:
+        record demonstrated unknown-message observation violation; return
     contentOK = savedObserved equals registered[id].original
-    if not contentOK: record protocol content mismatch
+    if not contentOK: record demonstrated content-mismatch violation
     if not duplicate and contentOK:
         remove receiver from registered[id].outstandingRecipients
         increment valid unique delivery coverage
 ```
 
-### 7.3 Final assessment
+### 7.3 Record unavailable evidence
+
+```text
+recordObservationGap(detail):
+    record reporting-gap diagnostic and unavailable evidence
+    do not set concrete-violation status or invent missing events
+    if phase CLOSED: publish updated assessment using Section 5 precedence
+```
+
+### 7.4 Final assessment
 
 ```text
 closeObservation(reason):
@@ -396,9 +471,11 @@ closeObservation(reason):
     remember whether workload was closed; set phase CLOSED and close reason
     collect missing pairs, unaccounted/problem slots and coverage evidence
 
-    if sticky violation: verdict = UNSUCCESSFUL
+    if demonstrated concrete violation: verdict = UNSUCCESSFUL
     else if reason is TIMEOUT or INTERRUPTED: verdict = INCOMPLETE
-    else if workload not closed or any incomplete evidence:
+    else if workload not closed or unavailable evidence/reporting gap
+            or unresolved accounting/submission outcome
+            or outstanding obligations or unmet coverage:
         verdict = INCOMPLETE
     else: verdict = SUCCESSFUL
 
@@ -444,18 +521,38 @@ components. Timeout tests pass `TIMEOUT` explicitly; they do not sleep.
 | Unknown message, receiver, wrong incarnation/run, null payload | Observation error; no invented original or unrelated history mutation. | 3.1–3.3, 4.1 |
 | Reuse message identity or planned slot | Observation error; first registration retained. | 3.2, 4.1 |
 | One missing recipient, then message omitted everywhere | Incomplete at closure; exact missing pairs, including all members for the unseen message. | 4.4, 6.2 |
-| Planned send never registered; rejected/uncertain/not-invoked slot | No pass; unaccounted slots are incomplete and declared submission-contract violations unsuccessful. | 3.2, 4.5, 5 |
+| Planned send never registered; rejected/uncertain/not-invoked slot | No pass; missing/uncertain evidence is incomplete, demonstrated baseline submission-contract violations unsuccessful. | 3.2, 4.5, 5 |
+| Reporting gap alone, then gap plus a concrete violation | Gap alone closes incomplete; concrete violation takes precedence and closes unsuccessful. A newly known gap can supersede an earlier success. | 3.1, 6.1–6.2 |
 | Close workload with outstanding deliveries, then deliver them | Draining allows catch-up; no success until observation closes. | 4.5 |
 | Empty dedicated workload versus traffic-required coverage | Dedicated case succeeds without deliveries; invalid configuration is rejected, unmet feasible coverage cannot pass. | 4.5, 5 |
 | Empty obligations while workload remains open; normal close without workload closure | No premature success; final result incomplete. | 4.5 |
 | TIMEOUT/INTERRUPTED, with and without earlier violations | Incomplete unless violation already established unsuccessful; no inferred actor failure. | 6.1–6.2 |
 | Delivery after successful closure; repeated closure | New late-event diagnostic supersedes success; prior snapshot immutable; identical closure idempotent. | 4.5, 6.4 |
 
-These are planned tests, not executed results. Periodic scheduling and watchdog
-behavior require separate runner/adapter tests; simulated reports do not validate
-the real runtime or TOM implementation.
+The stage-1 implementation exercises these baseline cases in
+`VerifierBaselineTest`; exact commands and actual results are recorded in
+[verifier_tests.md](verifier_tests.md). Periodic scheduling and watchdog behavior
+still require separate runner/adapter tests; simulated reports do not validate
+the real runtime or TOM implementation. Results use immutable nested diagnostic
+and missing-delivery values, with bounded copied payload excerpts. Identical
+observation-close calls are idempotent; repeated workload closure is diagnosed
+as accounting after closure, consistent with the one-time workload-close call.
 
 ## 9. Future real scenario runner and proposed adapters
+
+### 9.1 Implementation stages
+
+| Stage | Connection and evidence | Dependency |
+| --- | --- | --- |
+| 1. Independent verifier tests | Simulated registrations and reports exercise the checking/accounting contract directly, with no runtime, TOM or envelope dependency. | Abdallah can implement independently. |
+| 2. TOM with simulated transport | Connect the verifier to the real `TomProcess` using FIFO test transport and an agreed identity-reporting adapter. This is TOM-component integration, not a real Group scenario. | Youssef reviews the identity option; existing simulated transport is reusable. |
+| 3. Real Actor/Group/queue integration | Route TOM through Actor tasks, actual Group readiness and real queues; add finite periodic/burst workloads, observation closure and watchdog assessment. | Adam supplies integrated Group/transport; Arhan and Youssef connect runtime/TOM clock and task contracts; Abdallah owns runner/report adapters. |
+| 4. Failure/reinsertion extensions | Begin with real failures without reinsertion, then effective reinsertion and voluntary membership scenarios under agreed participation rules. | Arhan supplies lifecycle support; Adam/Youssef agree and implement membership/order boundaries; Abdallah extends checking and coverage. |
+
+Unresolved extension semantics do not block stage 1. Simulated TOM results
+must not be presented as evidence of the absent real-component connection.
+
+### 9.2 Runner scheduling and observation
 
 The future runner retains the same core and supplies real observations through
 proposed `MulticastAdapter`, `DeliveryReportAdapter` and `VerifierMonitor`
@@ -489,9 +586,37 @@ scenario. Runner cleanup and process termination policy remain adapter design
 questions; the independent verifier needs neither.
 
 The current TOM listener exposes sender and payload but not full message
-identity. An agreed adapter/envelope or reporting hook is needed; matching by
-payload is invalid when two messages contain equal bytes. No teammate API is
-changed by this document.
+identity. An agreed adapter or reporting hook is needed; matching by payload
+is invalid when two messages contain equal bytes. No teammate API is changed
+by this document.
+
+### 9.3 Proposed application identity envelope
+
+Pending Youssef's review, one integration option is to encode a runner-assigned
+application `MessageId` and the workload payload in the bytes passed to
+`multicast`. The adapter independently registers that identity and original
+content before invocation. At application delivery it captures the receiver
+identity from the installed listener, decodes the envelope, checks the callback
+sender against the declared origin and supplies the identity and observed
+workload bytes to the verifier. The adapter must validate envelope metadata
+against the registered execution/group/origin and preserve evidence of malformed
+or altered envelopes; it must not silently discard them or manufacture records
+from delivered bytes. Exact encoding remains an adapter design decision.
+
+This option checks application-message integrity, duplicates, common delivery
+order and independently expected completeness, including equal workload bytes
+under distinct identities. An application sequence is not a prediction of
+`TomProcess`'s private sequence counter. Application identities are distinct
+from TOM's internal sender/incarnation/sequence packet identities: this option
+does not independently validate those internal fields or their assignment.
+That additional check would require an agreed TOM observation hook.
+
+The envelope belongs only to an integration adapter. The baseline verifier's
+registration/delivery methods continue to accept identities and payload bytes
+directly; they neither encode nor decode envelopes and gain no TOM dependency.
+The envelope is optional: a reviewed delivery-metadata hook could instead
+satisfy the same specification contract. Neither option adds a protocol ACK
+or delivery-dependent submission confirmation.
 
 ## 10. Extension points and unresolved integration questions
 
@@ -512,9 +637,9 @@ does not select which in-flight messages qualify or design state transfer.
 
 | Teammate | Remaining integration agreement |
 | --- | --- |
-| Youssef | Map independent registration/confirmation to multicast invocation; expose stable message identity and content in deliveries; preserve callback order and define synchronous delivery possibilities. No new protocol ACK is assumed. |
+| Youssef | Review the proposed application envelope or an alternative metadata hook; map independent registration/confirmation to multicast invocation; agree numeric identity mapping with Adam, preserve callback order and define synchronous delivery possibilities. No new protocol ACK is assumed. |
 | Arhan | Confirm executor posting/yield behavior, thread ownership and observation/watchdog boundary; later provide authoritative actor lifecycle and failure controls. Runtime fixes remain runtime work. |
-| Adam | Supply actual initial-group readiness and fixed member identities; later define effective membership evidence jointly with Youssef. |
+| Adam | Supply actual initial-group readiness, fixed member identities and the external Actor-name/numeric-ID mapping with Youssef; later define effective membership evidence jointly with Youssef. |
 | All members | Approve observation closure/report completeness, scenario coverage and diagnostic classification; resolve specification Section 7 before failure/dynamic-group integration. |
 
 ## 11. Proposed class/API summary
