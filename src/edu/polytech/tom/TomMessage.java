@@ -47,39 +47,36 @@ public class TomMessage implements Comparable<TomMessage> {
   }
 
   public static TomMessage leftover(int dead, int from, long clock, List<TomMessage> datas) {
-	    byte[][] packets = new byte[datas.size()][];
-	    int size = 4;
-	    
-	    for (int i = 0; i < packets.length; i++) {
-	      packets[i] = datas.get(i).toBytes();
-	      size += 4 + packets[i].length;
-	    }
+    byte[][] packets = new byte[datas.size()][];
+    int size = 4;
 
-	    ByteBuffer b = ByteBuffer.allocate(size);
-	    b.putInt(packets.length);
-	    
-	    for (byte[] packet : packets) {
-	      b.putInt(packet.length);
-	      b.put(packet);
-	    }
-	    
-	    return new TomMessage(LEFTOVER, dead, 0, 0, 0, from, clock, b.array());
-	  }
+    for (int i = 0; i < packets.length; i++) {
+      packets[i] = datas.get(i).toBytes();
+      size += 4 + packets[i].length;
+    }
+
+    ByteBuffer b = ByteBuffer.allocate(size);
+    b.putInt(packets.length);
+
+    for (byte[] packet : packets) {
+      b.putInt(packet.length);
+      b.put(packet);
+    }
+
+    return new TomMessage(LEFTOVER, dead, 0, 0, 0, from, clock, b.array());
+  }
 
   public List<TomMessage> leftoverData() {
-    if (type != LEFTOVER)
-      throw new IllegalStateException("not a LEFTOVER packet");
-
     ByteBuffer b = ByteBuffer.wrap(payload);
     int count = b.getInt();
     List<TomMessage> datas = new ArrayList<TomMessage>();
-    
+
     for (int i = 0; i < count; i++) {
       byte[] packet = new byte[b.getInt()];
       b.get(packet);
       datas.add(fromBytes(packet));
     }
-    
+
     return datas;
   }
 
@@ -120,12 +117,5 @@ public class TomMessage implements Comparable<TomMessage> {
     byte[] payload = new byte[b.getInt()];
     b.get(payload);
     return new TomMessage(type, sender, incarnation, sequence, timestamp, from, clock, payload);
-  }
-
-  @Override
-  public String toString() {
-    if (type == LEFTOVER)
-      return "LEFTOVER of " + sender + " from=" + from;
-    return (type == DATA ? "DATA " : "ACK ") + id() + " ts=" + timestamp + " from=" + from;
   }
 }
