@@ -72,3 +72,13 @@ P1 and P2 send at the same time. `a` from P1 gets timestamp 1 and `b` from P2
 gets timestamp 1. The tie goes to the smaller sender, so `a` is before `b` for
 everybody. Even if P3 receives `b` first, it cannot deliver it before `a`:
 P1 sent `a` before its ACK of `b`, so `a` reaches P3 before that ACK.
+
+## 6. Why it is correct
+
+- Everybody sorts with the same key (timestamp, sender id), so the same messages are always in the same order.
+- A member delivers the first message `m` of its queue only when it has the ACK of every member. Before sending
+  its ACK, each member had received `m`, so its clock was already bigger than the timestamp of `m`. Anything it
+  sends later has a bigger timestamp than `m`.
+- Anything a member sent before its ACK arrives before the ACK, because the link is FIFO. So when I have
+  all the ACKs, I already have every message that comes before `m`: no smaller message can arrive later.
+- Conclusion : delivering `m` is safe, and every member delivers the messages in the same order.

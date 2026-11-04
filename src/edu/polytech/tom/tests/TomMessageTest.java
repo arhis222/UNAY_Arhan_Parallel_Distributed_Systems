@@ -1,6 +1,8 @@
 package edu.polytech.tom.tests;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 import edu.polytech.tom.TomMessage;
 
@@ -35,6 +37,23 @@ public class TomMessageTest {
     check(ack.payload.length == 0, "ACK has no payload");
   }
 
+  static void testLeftover() {
+    TomMessage d1 = TomMessage.data(1, 1, 3, 5, new byte[] { 1 });
+    TomMessage d2 = TomMessage.data(1, 1, 4, 6, new byte[] { 2, 2 });
+    TomMessage left = TomMessage.fromBytes(TomMessage.leftover(1, 2, 9, Arrays.asList(d1, d2)).toBytes());
+    check(left.type == TomMessage.LEFTOVER, "LEFTOVER has the LEFTOVER type");
+    check(left.sender == 1 && left.from == 2 && left.clock == 9, "LEFTOVER has the dead member, who sends it and its clock");
+
+    List<TomMessage> datas = left.leftoverData();
+    check(datas.size() == 2, "LEFTOVER carries its 2 DATA");
+    check(datas.get(0).id().equals(d1.id()) && Arrays.equals(datas.get(0).payload, d1.payload), "first DATA is the same");
+    check(datas.get(1).id().equals(d2.id()) && Arrays.equals(datas.get(1).payload, d2.payload), "second DATA is the same");
+    check(datas.get(1).timestamp == 6 && datas.get(1).type == TomMessage.DATA, "a DATA inside keeps its type and timestamp");
+
+    TomMessage empty = TomMessage.fromBytes(TomMessage.leftover(3, 2, 4, new ArrayList<TomMessage>()).toBytes());
+    check(empty.leftoverData().isEmpty(), "a LEFTOVER can carry no DATA");
+  }
+
   static void testId() {
     TomMessage a = TomMessage.data(1, 1, 1, 5, new byte[0]);
     check(a.id().equals(TomMessage.data(1, 1, 1, 8, new byte[0]).id()), "same sender, incarnation and sequence give the same id");
@@ -53,10 +72,12 @@ public class TomMessageTest {
   }
 
   public static void main(String[] args) {
+	System.out.println("==== TOM Message TEST ====");
     testDataBytes();
     testAck();
+    testLeftover();
     testId();
     testOrder();
-    System.out.println("TomMessageTest: all checks passed");
+    System.out.println("TomMessageTest: all tests passed");
   }
 }
