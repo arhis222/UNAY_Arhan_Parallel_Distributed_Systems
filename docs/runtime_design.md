@@ -103,8 +103,8 @@ The project reported a warning about its unspecified text encoding.
 RuntimeTest, the channel and queue launch configurations, TomMessageTest,
 TomProcessTest and ComplianceTests all passed using these Eclipse-built
 classes and the Java runtime bundled with Eclipse. The tests were started
-from the terminal because UI automation timed out after import. Running the
-launch configurations from the Eclipse UI still needs to be checked. The
+from the terminal. Running the launch configurations from the Eclipse UI
+still needs to be checked. The
 final integrated submission will also need a fresh import test.
 
 The final runtime check also covers changing a task's failure flag and normal

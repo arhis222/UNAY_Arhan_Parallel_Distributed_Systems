@@ -14,7 +14,7 @@ test when the verifier produces the expected verdict and diagnostic evidence.
 Only behavior differing from the expected result fails the test process.
 
 The separate `TomMessageTest` run below is a packet-representation regression
-check, not TOM integration. No teammate source was modified.
+check, not TOM integration.
 
 ## Command-line toolchain and exact commands
 
@@ -59,7 +59,7 @@ temporary directory.
 
 ## Command-line results
 
-The review follow-up reran compilation and both suites on 4 November 2026.
+Compilation and both suites were rerun on 4 November 2026.
 The verifier count increased from 23 to 49 groups because malformed delivery,
 registration, submission-issue and closed-workload traces are now isolated in
 fresh verifier instances, and focused boundary/self-delivery/late-delivery
@@ -135,14 +135,13 @@ The packet regression ended with:
 TomMessageTest: all tests passed
 ```
 
-## User-performed manual Eclipse validation
+## Manual Eclipse validation
 
 On 4 November 2026, **Abdallah ABDELSADEK** manually verified commit
 `fc7e574` in Eclipse IDE for Java Developers, version **2024-12 (4.34.0)**,
-build **20241128-0757**. This records the tester's supplied evidence; it is
-not an Eclipse check performed by the assistant.
+build **20241128-0757**. The results below were reported by Abdallah.
 
-In the fresh workspace `sar-verification`, the tester used **File → Import →
+In the fresh workspace `sar-verification`, Abdallah used **File → Import →
 General → Existing Projects into Workspace**, selected the repository root,
 and left **Copy projects into workspace** unchecked. Eclipse detected
 `Arhan_UNAY_Channels`. No additional project configuration or dependency
@@ -157,7 +156,7 @@ points as Java Applications produced:
 | `VerifierBaselineTest` | `VerifierBaselineTest: 49 simulated-report test groups passed` |
 | `TomMessageTest` | `TomMessageTest: all tests passed` |
 
-The tester inspected all 25 warnings: raw `Class`/`Constructor` generic types,
+Abdallah inspected all 25 warnings: raw `Class`/`Constructor` generic types,
 associated type-safety warnings, and unused imports, fields or local variables
 in existing channel, queue and TOM test sources. None of the listed warnings
 points to `src/edu/polytech/verifier/`. No warning suppression or source changes

@@ -8,24 +8,18 @@ Date: 1 November 2026
 
 Last revised: 4 November 2026
 
-## 1. Scope and relation to the specification
+## 1. Scope
 
-This design implements the fixed-group, no-failure observation contract in
-[verifier_spec.md](verifier_spec.md), Sections 3–6 and the baseline simulated
-scenarios in Section 8. The specification remains authoritative. All classes,
-signatures, adapters and scheduling choices below are proposals, not changes
-to teammates' interfaces or additional assignment requirements.
+This design covers the fixed-group, no-failure checks in
+[verifier_spec.md](verifier_spec.md), Sections 3–6, and the simulated tests
+in Section 8. The first version checks a fixed, nonempty group and a finite
+workload using direct method calls. Recovery and dynamic membership still
+need the decisions listed in Section 10.
 
-The first version checks a nonempty, immutable group of actor incarnations and
-a finite workload. It observes direct method reports; it neither runs the
-multicast protocol nor decides its ordering. Recovery and dynamic membership
-are outside this design. Section 10 identifies the contracts needed later.
-
-The implementation can use ordinary Java 8 classes and collections under the
-existing Eclipse `src` directory, with no dependencies or build-system changes.
-Proposed packages are `edu.polytech.verifier` and
-`edu.polytech.verifier.tests`. No records, newer collection factories, runtime
-inheritance or TOM implementation classes are required.
+The implementation uses Java 8 classes in `edu.polytech.verifier` and
+`edu.polytech.verifier.tests`, under the Eclipse `src` directory. It needs
+no additional dependencies. The later integration adapters are proposals
+that the group still needs to agree on.
 
 ### 1.1 Current integration state
 
@@ -587,7 +581,7 @@ questions; the independent verifier needs neither.
 
 The current TOM listener exposes sender and payload but not full message
 identity. An agreed adapter or reporting hook is needed; matching by payload
-is invalid when two messages contain equal bytes. No teammate API is changed
+is invalid when two messages contain equal bytes. The proposed adapter keeps the existing APIs
 by this document.
 
 ### 9.3 Proposed application identity envelope

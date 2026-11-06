@@ -2,31 +2,24 @@
 
 Author: Abdallah ABDELSADEK
 
-Status: Draft for group review; extension contracts remain open
+Status: Draft for group review; failure and membership rules still need agreement
 
 Date: 1 November 2026
 
-## 1. Purpose and authority
+## 1. Purpose
 
-The Group Verifier observes application deliveries and lifecycle events for
-one multicast group. It checks whether the observed execution satisfies the
-agreed multicast properties. The common scenario runner supplies finite
-workloads and lifecycle actions, collects the observations needed for checking,
-and reports the execution outcome.
+The Group Verifier checks delivered messages and actor lifecycle events for
+one multicast group. The scenario runner generates a finite workload,
+triggers lifecycle actions and reports the results.
 
-This document distinguishes three kinds of statement:
+The labels distinguish the assignment from our design choices:
 
-- **Assignment requirement (A):** imposed by `project.pdf`.
-- **Proposed observation contract (P):** behavior proposed here so that the
-  verifier and runner can be implemented and tested independently. These
-  contracts require group review; they are not prescribed Java interfaces.
-- **Open question (Q):** behavior that must be agreed before the corresponding
-  extension can receive an unconditional success verdict.
+- **Assignment requirement (A):** required by `project.pdf`.
+- **Proposed rule (P):** our proposed behavior, to be agreed by the group.
+- **Open question (Q):** a decision still needed before testing that feature.
 
-Within this draft, “must” describes the contract being specified; the labels
-identify its authority. Section 4 is a complete proposed checking contract for
-a fixed group without failures. Section 7 does not resolve the open protocol
-semantics of failures and membership changes.
+Section 4 defines the checks for a fixed group without failures. Section 7
+lists the remaining decisions for failures and membership changes.
 
 Sources:
 
