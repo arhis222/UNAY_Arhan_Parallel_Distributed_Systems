@@ -185,7 +185,7 @@ public class TomProcessTest {
   static void testIdentity() {
     setup(3);
     final List<List<String>> identities = new ArrayList<List<String>>();
-    
+
     for (int i = 0; i < n; i++) {
       final List<String> mine = new ArrayList<String>();
       identities.add(mine);
@@ -197,7 +197,7 @@ public class TomProcessTest {
     long second = procs[1].multicast("b".getBytes());
     run(new Random(1));
     check(first == 0 && second == 1, "multicast returns the sequence number: 0 then 1");
-    
+
     for (int i = 0; i < n; i++)
       check(identities.get(i).toString().equals("[1.1#0:a, 1.1#1:b]"), "member " + i + " delivers a and b with their identities");
   }
@@ -364,7 +364,7 @@ public class TomProcessTest {
       dead[0] = true;
 
       stepSome(random, 10);
-      procs[1].memberDied(0); 
+      procs[1].memberDied(0);
       stepSome(random, 10);
       killWhileSending(1, random);
       stepSome(random, 10);
@@ -380,7 +380,7 @@ public class TomProcessTest {
   }
 
   public static void main(String[] args) {
-	System.out.println("==== TOM Process TEST ====");
+    System.out.println("==== TOM Process TEST ====");
     testOneSender();
     testSeveralSenders();
     testAckArrivesBeforeData();

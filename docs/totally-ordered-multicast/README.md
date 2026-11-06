@@ -1,4 +1,4 @@
-# Totally-ordered multicast - Files Structure 
+# Totally-ordered multicast - Files Structure
 
 Youssef Kirlos
 

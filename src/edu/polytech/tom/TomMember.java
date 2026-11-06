@@ -12,14 +12,8 @@ import edu.polytech.groups.MemberId;
 import edu.polytech.groups.View;
 
 /*
- * The multicast of one member of a Group. Each view of the Group is a period
- * with its own TomProcess, for a group that does not change. A period delivers
- * nothing to the application until all the older periods are over, so every
- * member delivers the messages of a period before the ones of the next period.
- * A member that arrives or comes back has no TomProcess for the older periods:
- * it never gets what was sent before its first view.
- * It relies on the Group: same views in the same order for everybody, and the
- * same packets of a removed member for everybody before the view without it.
+ * The multicast of one member of a Group: each view is a period with its own TomProcess,
+ * and a period delivers only when the older periods are over, so all members deliver in the same order.
  */
 public class TomMember implements TotalOrderMulticast, Group.Listener {
 

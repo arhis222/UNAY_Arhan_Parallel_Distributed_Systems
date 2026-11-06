@@ -73,7 +73,7 @@ public class TomMessageTest {
   }
 
   public static void main(String[] args) {
-	System.out.println("==== TOM Message TEST ====");
+    System.out.println("==== TOM Message TEST ====");
     testDataBytes();
     testAck();
     testLeftover();

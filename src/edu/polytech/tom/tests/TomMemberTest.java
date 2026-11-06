@@ -221,6 +221,6 @@ public class TomMemberTest {
     testOlderMessageComesFirst();
     testMemberRemovedWhileOlderMessageWaits();
     System.out.println("TomMemberTest: all tests passed");
-    System.exit(0); 
+    System.exit(0);
   }
 }
