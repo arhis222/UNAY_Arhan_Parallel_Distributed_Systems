@@ -303,16 +303,66 @@ watchdog or membership behavior was added. Class files stayed under `/tmp`.
 Eclipse configuration was unchanged; no new Eclipse UI validation was performed.
 The earlier manual Eclipse evidence applies to its recorded commit only.
 
+## Real Group/TOM baseline integration — 6 November 2026
+
+`edu.polytech.verifier.tom.tests.VerifierTomGroupTest` reuses `TomGroupTest`'s
+real `Actor`/`GroupManager`/`TomMember` setup, bounded pump calls and polling,
+and standalone-process `System.exit` cleanup (the executor has no shutdown API).
+It waits for every initial view and validates the fixed member/incarnation set
+before sending. Three non-failing actors each send two enveloped messages.
+Each original is provisionally registered immediately before invocation and
+confirmed only after normal return with the sender alive. Application IDs use
+caller-assigned sequences, independent of TOM sequences. Receiver-bound listeners
+decode each frame, validate callback sender/incarnation and report workload bytes
+to the verifier. Callback errors are retained and fail the test, never silently
+dropped. All verifier access occurs on the event pump.
+
+Commands executed from the repository root with installed Temurin Java 8:
+
+```sh
+mktemp -d /tmp/sar-verifier-tom-group.XXXXXX
+# Returned /tmp/sar-verifier-tom-group.LPCPlx
+/home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/javac -encoding UTF-8 -Xlint:all -sourcepath src -d /tmp/sar-verifier-tom-group.LPCPlx src/edu/polytech/verifier/tom/tests/VerifierTomGroupTest.java src/edu/polytech/verifier/tests/VerifierBaselineTest.java src/edu/polytech/verifier/tom/tests/ApplicationEnvelopeCodecTest.java src/edu/polytech/tom/tests/TomGroupTest.java
+timeout 30s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-verifier-tom-group.LPCPlx edu.polytech.verifier.tom.tests.VerifierTomGroupTest
+timeout 30s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-verifier-tom-group.LPCPlx edu.polytech.tom.tests.TomGroupTest
+/home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-verifier-tom-group.LPCPlx edu.polytech.verifier.tests.VerifierBaselineTest
+/home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-verifier-tom-group.LPCPlx edu.polytech.verifier.tom.tests.ApplicationEnvelopeCodecTest
+```
+
+Compilation exited 0 with no warnings under `-Xlint:all`. All four test
+processes exited 0; neither external timeout expired:
+
+```text
+VerifierTomGroupTest: SUCCESSFUL; 3 members, 6 messages, 18 deliveries, identical histories
+TomGroupTest: all tests passed
+VerifierBaselineTest: 57 simulated-report test groups passed
+ApplicationEnvelopeCodecTest: 225 checks passed
+```
+
+The new integration test asserts successful explicit closure, six confirmations,
+zero provisional/unaccounted sends, no missing obligations, and each recipient's
+exact expected message set, count and common order. Equal workload bytes from
+different senders exercise distinct application identities. This is one finite
+real-component no-failure trace, not a reusable scenario runner or failure
+verifier. Normal observation closes after the expected deliveries; it does not
+establish protocol-wide traffic exhaustion or the absence of future late events.
+The unchanged `TomGroupTest` additionally runs its existing survivor scenario;
+that does not validate verifier failure semantics. No periodic scheduling,
+watchdog, reinsertion or dynamic-membership checking was added. New sources
+remain Java 8 under `src`; classes stayed under `/tmp`, Eclipse configuration
+was unchanged, and no new Eclipse UI validation was performed.
+
 ## Limitations and remaining integration
 
 - Simulated reports validate the checker against supplied evidence, not the
   faithfulness/completeness of future real reporting adapters.
-- Timeout/interruption are supplied explicitly; no real timing or scheduling
-  behavior is tested. Period/budget values are validated metadata only.
-- The separately tested envelope codec above adds no TOM transport adapter,
-  runtime dependency, Group readiness,
-  task-clock integration, watchdog, failure or dynamic-membership checker is
-  implemented in stage 1.
+- Independent baseline timeout/interruption cases supply close reasons
+  explicitly. The new integration test uses bounded real waiting but does not
+  test periodic scheduling or a watchdog. Period/budget configuration remains
+  metadata rather than an implemented runner deadline.
+- The new test connects the core and codec to real Group/TOM components for
+  one fixed no-failure workload. It adds no reusable production adapter,
+  task-clock integration, failure or dynamic-membership checker.
 - The core requires sequential calls. No concurrent-use guarantee or monitor
   adapter is provided. Memory grows with actual registrations, delivery reports
   and diagnostics; snapshots copy observed evidence. This is not an unbounded
@@ -323,8 +373,8 @@ The earlier manual Eclipse evidence applies to its recorded commit only.
   manual Eclipse check above validates import/build and the two stated entry
   points at `fc7e574`; final integrated submission verification remains pending.
 
-Next integration work must implement the documented agreed application-envelope
-and submission lifecycle through reviewed core/adapter APIs. Adam's Group
-readiness and transport, Arhan/Youssef's task/TOM clock connection, and concrete
-observation-closure evidence remain dependencies. Failure/reinsertion boundaries
-remain outside these independent baseline and codec checks.
+Further work includes a reusable reviewed observation adapter and scenario
+runner, task/TOM clock integration where required, and concrete protocol-wide
+completion evidence. Initial Group readiness and queue transport are exercised
+by the new test rather than remaining absent connections. Verifier failure and
+reinsertion boundaries remain outside this baseline integration result.
