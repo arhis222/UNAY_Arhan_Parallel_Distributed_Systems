@@ -212,13 +212,61 @@ S refers to [verifier_spec.md](verifier_spec.md); D refers to
 [verifier_design.md](verifier_design.md). The source test table in D §8 remains
 the acceptance-case mapping. A test group can exercise several related traces.
 
+## Application envelope version-1 codec — command-line validation
+
+On 4 November 2026, the independent codec and unchanged verifier baseline were
+compiled and run from the repository root on `abdallah-master` using installed
+Temurin 8.0.392 (`javac 1.8.0_392`, runtime `1.8.0_392-b08`). These are codec
+tests and simulated-report verifier regression tests, not TOM integration.
+Generated classes were kept outside the repository. Exact commands:
+
+```sh
+mktemp -d /tmp/sar-envelope-codec.XXXXXX
+# Returned /tmp/sar-envelope-codec.7LMS43
+/home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/javac -version
+/home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -version
+/home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/javac -encoding UTF-8 -Xlint:all -d /tmp/sar-envelope-codec.7LMS43 src/edu/polytech/verifier/*.java src/edu/polytech/verifier/tests/*.java src/edu/polytech/verifier/tom/*.java src/edu/polytech/verifier/tom/tests/*.java
+/home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-envelope-codec.7LMS43 edu.polytech.verifier.tom.tests.ApplicationEnvelopeCodecTest
+/home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-envelope-codec.7LMS43 edu.polytech.verifier.tests.VerifierBaselineTest
+```
+
+Compilation exited 0 with no warnings or errors under `-Xlint:all`. Both test
+processes exited 0 without `-ea`:
+
+```text
+ApplicationEnvelopeCodecTest: 225 checks passed
+VerifierBaselineTest: 49 simulated-report test groups passed
+```
+
+Codec coverage includes empty/binary workloads, exact Unicode preservation
+(including supplementary characters and BOM), numeric maxima, distinct IDs
+with equal bytes, a hand-authored big-endian frame, minimum/maximum frame sizes,
+1,024-byte names and 1 MiB workload boundaries, one-above rejection, byte versus
+character limits, and defensive copies. Invalid cases check reason/offset
+evidence for magic/version, signed lengths and identities, blank names, invalid
+UTF-8 and unpaired Java surrogates. Every truncation offset of the 37-byte
+fixture, trailing bytes and concatenated frames are rejected. Invalid inputs
+pass their checks only when the expected checked exception is produced.
+
+The codec has no runtime or TOM dependency and does not confirm submissions,
+check registered originals or report deliveries; those remain adapter/core work.
+Allocation tests are bounded at approximately 1 MiB per frame; they do not test
+memory exhaustion, concurrent caller mutation or exhaustive malformed inputs.
+No provisional-registration API, observer, transport integration, lifecycle or
+membership behavior was implemented or validated. No new Eclipse UI validation
+was performed: the manual `fc7e574` record above predates these codec files.
+Sources remain under `src`, use Java 8 standard-library APIs, and require no
+Eclipse configuration changes. The new files and final integrated submission
+still need fresh-workspace Eclipse import/build/run verification.
+
 ## Limitations and remaining integration
 
 - Simulated reports validate the checker against supplied evidence, not the
   faithfulness/completeness of future real reporting adapters.
 - Timeout/interruption are supplied explicitly; no real timing or scheduling
   behavior is tested. Period/budget values are validated metadata only.
-- No envelope, TOM transport adapter, runtime dependency, Group readiness,
+- The separately tested envelope codec above adds no TOM transport adapter,
+  runtime dependency, Group readiness,
   task-clock integration, watchdog, failure or dynamic-membership checker is
   implemented in stage 1.
 - The core requires sequential calls. No concurrent-use guarantee or monitor
@@ -231,7 +279,8 @@ the acceptance-case mapping. A test group can exercise several related traces.
   manual Eclipse check above validates import/build and the two stated entry
   points at `fc7e574`; final integrated submission verification remains pending.
 
-Next agreements remain Youssef's application identity/registration boundary,
-Adam's Group readiness and transport, Arhan/Youssef's task/TOM clock connection,
-and shared observation closure. Failure/reinsertion boundaries remain open and
-do not block these independent baseline checks.
+Next integration work must implement the documented agreed application-envelope
+and submission lifecycle through reviewed core/adapter APIs. Adam's Group
+readiness and transport, Arhan/Youssef's task/TOM clock connection, and concrete
+observation-closure evidence remain dependencies. Failure/reinsertion boundaries
+remain outside these independent baseline and codec checks.
