@@ -17,13 +17,13 @@ import edu.polytech.utils.Executor;
 
 /** Group formation and failure tests (steps 1 and 2). Run as a Java application. */
 public final class GroupTest {
-  private static final Task driver = Executor.self().newTask("group-test-driver");
+  static final Task driver = Executor.self().newTask("group-test-driver");
 
-  private static void check(boolean condition, String message) {
+  static void check(boolean condition, String message) {
     if (!condition) throw new AssertionError(message);
   }
 
-  private static void onPump(Runnable action) throws Exception {
+  static void onPump(Runnable action) throws Exception {
     CompletableFuture<Void> done = new CompletableFuture<Void>();
     driver.post(() -> {
       try { action.run(); done.complete(null); }
@@ -32,18 +32,18 @@ public final class GroupTest {
     done.get(5, TimeUnit.SECONDS);
   }
 
-  private static void await(CountDownLatch latch, String what) throws Exception {
+  static void await(CountDownLatch latch, String what) throws Exception {
     check(latch.await(5, TimeUnit.SECONDS), "Timed out: " + what);
   }
 
-  private static void pause(int ms) throws Exception {
+  static void pause(int ms) throws Exception {
     CountDownLatch done = new CountDownLatch(1);
     driver.post(done::countDown, ms);
     await(done, "pause");
   }
 
   /** Records what one member observes: "view <id> <ids>" or "<from>:<text>". */
-  private static final class Probe implements Group.Listener {
+  static final class Probe implements Group.Listener {
     final List<String> events = Collections.synchronizedList(new ArrayList<String>());
     final CountDownLatch started = new CountDownLatch(1);
     volatile Group group;
@@ -68,7 +68,7 @@ public final class GroupTest {
     }
   }
 
-  private static Probe[] form(int n, Actor[] actors, String name) throws Exception {
+  static Probe[] form(int n, Actor[] actors, String name) throws Exception {
     Probe[] probes = new Probe[n + 1];
     for (int i = 1; i <= n; i++) probes[i] = new Probe();
     onPump(() -> {
@@ -86,7 +86,7 @@ public final class GroupTest {
     return probes;
   }
 
-  private static void sendToAll(Group g, String text) {
+  static void sendToAll(Group g, String text) {
     for (int to : g.view().ids()) g.send(to, text.getBytes());
   }
 
@@ -142,6 +142,28 @@ public final class GroupTest {
     System.out.println("failure without reinsertion: OK");
   }
 
+  /**
+   * A large backlog: member 2 sends 100 packets in one callback and dies. Every
+   * survivor receives all 100 packets before the view without 2.
+   */
+  private static void failureWithBacklog() throws Exception {
+    int n = 3;
+    Actor[] actors = new Actor[n + 1];
+    Probe[] probes = form(n, actors, "backlog");
+    onPump(() -> {
+      for (int k = 0; k < 100; k++) sendToAll(probes[2].group, "y" + k);
+      actors[2].suicide();
+    });
+    pause(200);
+    for (int i : new int[] { 1, 3 }) {
+      List<String> got = probes[i].snapshot();
+      check(got.size() == 102, "Member " + i + " got " + got.size() + " events");
+      for (int k = 0; k < 100; k++) check(got.get(1 + k).equals("2:y" + k), "Member " + i + " event " + (1 + k) + ": " + got.get(1 + k));
+      check(got.get(101).equals("view 2 [1, 3]"), "Member " + i + " last event " + got.get(101));
+    }
+    System.out.println("failure with a backlog of 100 packets: OK");
+  }
+
   /** Two failures in a row: survivors install views 2 and 3, in that order. */
   private static void twoFailures() throws Exception {
     int n = 5;
@@ -164,10 +186,17 @@ public final class GroupTest {
     System.out.println("two failures: OK");
   }
 
-  public static void main(String[] args) throws Exception {
-    formation();
-    failure();
-    twoFailures();
+  public static void main(String[] args) {
+    try {
+      formation();
+      failure();
+      failureWithBacklog();
+      twoFailures();
+    } catch (Throwable failure) {
+      failure.printStackTrace();
+      System.out.println("FAIL");
+      System.exit(1);
+    }
     System.out.println("All group tests passed");
     System.exit(0);
   }
