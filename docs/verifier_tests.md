@@ -352,16 +352,70 @@ watchdog, reinsertion or dynamic-membership checking was added. New sources
 remain Java 8 under `src`; classes stayed under `/tmp`, Eclipse configuration
 was unchanged, and no new Eclipse UI validation was performed.
 
+## Reusable fixed-group runner and sending periods — 6 November 2026
+
+The scenario is now extracted into
+`edu.polytech.verifier.tom.FixedGroupTomRunner(String runId, int periodMillis)`.
+Each single-use runner forms three non-failing actors, sends two messages per
+actor, and returns an immutable `VerificationResult` from `run()`. Invoke it
+off the event pump and use distinct run IDs for separate groups. Negative
+periods and blank run IDs are rejected. The runner does not terminate the JVM;
+the integration test retains standalone-process cleanup, matching `TomGroupTest`.
+
+Initial-view readiness, independent originals before multicast, confirmation
+after normal live return, and receiver-bound decoding/reporting are preserved.
+Each sender performs one send per posted runnable. Period 0 means no intentional
+delay and yields between sends. A positive period delays that sender's successor
+from completion of its previous send; actual scheduling may be later. A monotonic
+elapsed-time check in each successive-send runnable verifies the minimum period.
+There is no sleeping on the event pump. Bounded caller-side polling posts pump
+observations while the executor keeps processing traffic and delayed sends.
+Workload closure occurs only after every sender's final confirmation. On exit,
+scheduled send callbacks are disabled; existing group resources remain until
+the caller terminates its standalone process.
+
+Exact commands, with generated classes outside the repository:
+
+```sh
+mktemp -d /tmp/sar-verifier-period.XXXXXX
+# Returned /tmp/sar-verifier-period.zWvIQF
+/home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/javac -encoding UTF-8 -Xlint:all -sourcepath src -d /tmp/sar-verifier-period.zWvIQF src/edu/polytech/verifier/tom/tests/VerifierTomGroupTest.java src/edu/polytech/verifier/tests/VerifierBaselineTest.java src/edu/polytech/verifier/tom/tests/ApplicationEnvelopeCodecTest.java src/edu/polytech/tom/tests/TomGroupTest.java
+timeout 30s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-verifier-period.zWvIQF edu.polytech.verifier.tom.tests.VerifierTomGroupTest
+timeout 30s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-verifier-period.zWvIQF edu.polytech.tom.tests.TomGroupTest
+/home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-verifier-period.zWvIQF edu.polytech.verifier.tests.VerifierBaselineTest
+/home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-verifier-period.zWvIQF edu.polytech.verifier.tom.tests.ApplicationEnvelopeCodecTest
+```
+
+Java 8 compilation with `-Xlint:all` exited 0 without warnings. All four test
+processes exited 0; neither external timeout expired. Actual summaries:
+
+```text
+VerifierTomGroupTest: period=0 ms SUCCESSFUL; 3 members, 6 messages, 18 deliveries, identical histories
+VerifierTomGroupTest: period=5 ms SUCCESSFUL; 3 members, 6 messages, 18 deliveries, identical histories
+TomGroupTest: all tests passed
+VerifierBaselineTest: 57 simulated-report test groups passed
+ApplicationEnvelopeCodecTest: 225 checks passed
+```
+
+For each period the integration test asserts success, six confirmed messages,
+18 valid deliveries, no unresolved accounting, the expected unique message set
+at each of three recipients and identical histories. The two runs use separate
+groups in the same JVM. This tests fixed finite workloads and minimum per-sender
+spacing, not precise wall-clock timing, arbitrary workload configuration,
+protocol-wide traffic exhaustion, watchdog behavior or failure/membership
+extensions. The existing `TomGroupTest` survivor regression remains separate
+from verifier failure semantics. Eclipse configuration was preserved; new
+Eclipse UI validation and final integrated submission validation remain pending.
+
 ## Limitations and remaining integration
 
 - Simulated reports validate the checker against supplied evidence, not the
   faithfulness/completeness of future real reporting adapters.
 - Independent baseline timeout/interruption cases supply close reasons
-  explicitly. The new integration test uses bounded real waiting but does not
-  test periodic scheduling or a watchdog. Period/budget configuration remains
-  metadata rather than an implemented runner deadline.
-- The new test connects the core and codec to real Group/TOM components for
-  one fixed no-failure workload. It adds no reusable production adapter,
+  explicitly. Runner integration tests exercise bounded waiting and periods
+  0/5 ms, without a watchdog or a general configurable execution deadline.
+- The runner connects the core and codec to real Group/TOM components for
+  a fixed no-failure workload at a configurable period. It adds no general observation adapter,
   task-clock integration, failure or dynamic-membership checker.
 - The core requires sequential calls. No concurrent-use guarantee or monitor
   adapter is provided. Memory grows with actual registrations, delivery reports
@@ -373,8 +427,8 @@ was unchanged, and no new Eclipse UI validation was performed.
   manual Eclipse check above validates import/build and the two stated entry
   points at `fc7e574`; final integrated submission verification remains pending.
 
-Further work includes a reusable reviewed observation adapter and scenario
-runner, task/TOM clock integration where required, and concrete protocol-wide
+Further work includes a general reviewed observation adapter and broader scenario
+configuration, task/TOM clock integration where required, and concrete protocol-wide
 completion evidence. Initial Group readiness and queue transport are exercised
 by the new test rather than remaining absent connections. Verifier failure and
 reinsertion boundaries remain outside this baseline integration result.
