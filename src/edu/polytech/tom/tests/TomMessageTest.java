@@ -7,7 +7,8 @@ import java.util.List;
 import edu.polytech.tom.TomMessage;
 
 /*
- * TEST for now, to be more adjusted 
+ * TEST Checks the packets: DATA, ACK and LEFTOVER keep their content through bytes,
+ * the identity of a message, and the order of the messages (timestamp, sender).
  */
 public class TomMessageTest {
 

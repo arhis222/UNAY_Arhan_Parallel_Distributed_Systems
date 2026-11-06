@@ -16,7 +16,7 @@ import java.util.Random;
 
 /*
  * TEST with random deaths, it uses the fake network of TomProcessTest.
- * Some members die at random moments while they send
+ * Some members die at random moments while they send.
  */
 public class TomRandomDeathsTest {
 

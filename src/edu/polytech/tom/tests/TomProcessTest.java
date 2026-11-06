@@ -7,11 +7,11 @@ import java.util.List;
 import java.util.Random;
 import java.util.Set;
 
+import edu.polytech.tom.TomMessage;
 import edu.polytech.tom.TomProcess;
 
 /*
- * TEST for TomProcess class
- * Members are TomProcess objects connected by a fake network in memory.
+ * TEST Members are TomProcess objects connected by a fake network in memory.
  */
 public class TomProcessTest {
 
@@ -202,6 +202,41 @@ public class TomProcessTest {
       check(identities.get(i).toString().equals("[1.1#0:a, 1.1#1:b]"), "member " + i + " delivers a and b with their identities");
   }
 
+  // a clock that starts at a given number
+  static class ClockFrom implements TomProcess.Clock {
+    long value;
+
+    ClockFrom(long start) {
+      value = start;
+    }
+
+    public long tick() {
+      return ++value;
+    }
+
+    public long receive(long t) {
+      value = Math.max(value, t) + 1;
+      return value;
+    }
+  }
+
+  // the timestamps come from the clock given to the TomProcess, and the order is the same everywhere
+  static void testOtherClock() {
+    setup(3);
+    procs[0].setClock(new ClockFrom(99));
+    procs[1].setClock(new ClockFrom(5000));
+    procs[0].multicast("a".getBytes());
+    procs[1].multicast("b".getBytes());
+    procs[2].multicast("c".getBytes());
+
+    check(TomMessage.fromBytes(links[0 * n + 1].packets.getFirst()).timestamp == 100,
+        "the DATA of member 0 has the timestamp of the clock it was given");
+
+    run(new Random(1));
+    check(sameDelivered(3, 0, 1, 2), "clocks that start at 99, 5000 and 0: same messages in the same order everywhere");
+    check(delivered.get(0).toString().equals("[c, a, b]"), "the order follows the timestamps: c (1), a (100), b (5001)");
+  }
+
   static void testFiveMembers() {
     for (int seed = 0; seed < 50; seed++) {
       setup(5);
@@ -350,6 +385,7 @@ public class TomProcessTest {
     testSeveralSenders();
     testAckArrivesBeforeData();
     testIdentity();
+    testOtherClock();
     testFiveMembers();
     testManyMessagesAtOnce();
     testMemberDiesBeforeAck();
