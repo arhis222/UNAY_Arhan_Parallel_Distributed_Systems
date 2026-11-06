@@ -107,10 +107,10 @@ enable assertions. These are channel and queue tests, not the project TOM tests.
 | Existing channel and queue tests | Passed locally, including queue stress test; see docs/runtime_design.md |
 | Logical clocks and Actor lifecycle | RuntimeTest passed locally; see docs/runtime_design.md |
 | Groups and membership | Code and GroupTest are on adam-master; not yet integrated or validated here |
-| TOM without failures | Existing TomMessageTest and TomProcessTest passed; Actor/runtime integration remains |
-| TOM with failures, no reinsertion | Standalone LEFTOVER protocol tests passed after merging Arhan's runtime checks; Group/Actor integration remains |
-| TOM with resurrection and reinsertion | Not implemented yet |
-| TOM with dynamic membership | Not implemented yet |
+| TOM without failures | TomMessageTest, TomProcessTest and TomGroupTest (real Actors and Group) pass. Run each test with Run As > Java Application; see docs/totally-ordered-multicast/README.md |
+| TOM with failures, no reinsertion | TomProcessTest, TomRandomDeathsTest (2000 random runs) and TomGroupTest (suicide, load at 5 ms and 0 ms) pass |
+| TOM with resurrection and reinsertion | TomGroupTest (a member comes back and misses what was sent while it was dead) and TomMemberTest pass; see docs/totally-ordered-multicast/tom_version3_spec.md |
+| TOM with dynamic membership | TomGroupTest (join, leave, join while sending) and TomMemberTest (members that are late to install a view) pass |
 | Fresh Eclipse workspace import | Commit 1855c18 imported and built in Eclipse 2026-09; six test suites passed on its class files. UI launch and final integrated submission remain to be checked; see docs/runtime_design.md |
 
 After the runtime merge on 2 November 2026, RuntimeTest, TomMessageTest,
@@ -124,6 +124,8 @@ added here as the corresponding tests are implemented.
 ## Contributions
 
 ### Work already completed
+
+#### Arhan Unay
 
 Arhan's runtime contribution adds per-task logical clocks, pending-event
 cancellation, actor-wide failure, configurable random failures and fresh
@@ -148,6 +150,25 @@ Arhan UNAY completed the initial preparation for the group project:
 - Organised the shared development branch, personal branches and final
   submission branch, while preserving the original coursework branch.
 - Prepared the initial task allocation and integration plan for the group.
+
+#### Youssef Kirlos
+
+Totally-ordered multicast, developed on `youssef-master` and merged into `project-master`.
+
+What was done:
+
+- The packets DATA, ACK and LEFTOVER, with the identity of a message (sender, incarnation, sequence).
+- The multicast of one member: logical clock, ordered queue, ACKs and delivery, and members that die.
+- The link with the Group and the Actors: members can die, leave, join and come back.
+- The identity of a message for the verifier, and a logical clock that follows the clocks of the tasks.
+
+Where the files are:
+
+- Code: `src/edu/polytech/tom/` (`TotalOrderMulticast`, `TomMessage`, `TomProcess`, `TomMember`, `TaskClock`).
+- Tests: `src/edu/polytech/tom/tests/` (`TomMessageTest`, `TomProcessTest`, `TomRandomDeathsTest`,
+  `TomMemberTest`, `TomGroupTest`). Each one is run with Run As > Java Application.
+- Documents: `docs/totally-ordered-multicast/` (`README.md` with the list of files, `tom_spec.md`,
+  `tom_process_spec.md`, `tom_version2_spec.md`, `tom_version3_spec.md`).
 
 ### Project coordination
 

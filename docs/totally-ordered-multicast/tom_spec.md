@@ -1,7 +1,5 @@
 # Totally-ordered multicast - Specification
 
-Youssef Kirlos
-
 ## 1. What it does
 
 Every correct actor of the group delivers the same messages, with the same
@@ -27,8 +25,8 @@ place in the order.
 
 Class `edu.polytech.tom.TotalOrderMulticast`:
 
-- `multicast(payload)` sends a message to the whole group, including myself.
-- The listener gets `delivered(senderId, payload)`, in the common order.
+- `multicast(payload)` sends a message to the whole group, including myself. It returns the sequence number of the message.
+- The listener gets `delivered(senderId, incarnation, sequence, payload)`, in the common order. The first three are the identity of the message.
 
 From the group layer we need: send a packet to a member, the list of members
 at the start, and the notifications of death, join and leave.
