@@ -34,6 +34,19 @@ public final class View {
     return ids;
   }
 
+  /** The member with this id, or null. */
+  public MemberId member(int id) {
+    for (MemberId m : members)
+      if (m.id == id) return m;
+    return null;
+  }
+
+  View with(MemberId m) {
+    List<MemberId> all = new ArrayList<MemberId>(members);
+    all.add(m);
+    return new View(viewId + 1, all);
+  }
+
   View without(int id) {
     List<MemberId> rest = new ArrayList<MemberId>();
     for (MemberId m : members)
