@@ -12,9 +12,10 @@ The documents are in `docs/totally-ordered-multicast/`.
 
 | File | What it does |
 | --- | --- |
-| `TotalOrderMulticast.java` | The interface used by an actor: `multicast(payload)` to send to the whole group, and a listener called with `delivered(senderId, payload)`, in the same order on every member. |
+| `TotalOrderMulticast.java` | The interface used by an actor: `multicast(payload)` to send to the whole group, it returns the sequence number of the message. A listener is called with `delivered(senderId, incarnation, sequence, payload)`, in the same order on every member. |
 | `TomMessage.java` | The packets exchanged between members: DATA, ACK and LEFTOVER. It gives the message id, the order (timestamp, then sender) and the conversion to and from bytes. |
 | `TomProcess.java` | The multicast of one member. It has the logical clock, the queue of pending messages and the ACKs, and it delivers a message when everybody acknowledged it. |
+| `TomMember.java` | The link with the Group: it gives the packets and the views of the Group to a `TomProcess`, and tells it when a member left or died. It also passes the views on to whoever asks with `setViewListener`, for instance to know when the group is ready. |
 
 ## Tests
 
@@ -23,6 +24,7 @@ The documents are in `docs/totally-ordered-multicast/`.
 | `TomMessageTest.java` | The packets: DATA, ACK and LEFTOVER keep their content through bytes, the message id, and the order. |
 | `TomProcessTest.java` | `TomProcess` on a fake network in memory (random order, FIFO per link): one or several senders, an ACK before its DATA, 5 members, a burst of 60 messages, and members dying before, during and after a multicast. All the members still alive deliver the same messages in the same order. |
 | `TomRandomDeathsTest.java` | Random runs where some members die at random moments in the middle of what they send. The survivors must deliver the same messages in the same order, without duplicates and without losing their own messages. It uses `TomProcessTest`. |
+| `TomGroupTest.java` | `TomMember` with real Actors and a real Group: every member delivers the same messages with their identity, and the survivors still do after an actor killed itself. |
 
 ## Documents
 

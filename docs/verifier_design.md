@@ -8,27 +8,23 @@ Date: 1 November 2026
 
 Last revised: 4 November 2026
 
-## 1. Scope and relation to the specification
+## 1. Scope
 
-This design implements the fixed-group, no-failure observation contract in
-[verifier_spec.md](verifier_spec.md), Sections 3–6 and the baseline simulated
-scenarios in Section 8. The specification remains authoritative. All classes,
-signatures, adapters and scheduling choices below are proposals unless explicitly
-identified as confirmed TOM agreements. The confirmed agreements were supplied
-by Youssef through Abdallah on 4 November 2026 and are marked **C** in the
-specification. They do not imply changes already made to teammates' interfaces
-or additional assignment requirements.
+This design covers the fixed-group, no-failure checks in
+[verifier_spec.md](verifier_spec.md), Sections 3–6, and the simulated
+tests in Section 8. The baseline checks a fixed, nonempty group and a
+finite workload through direct observations. Section 10 lists the
+remaining decisions for recovery and dynamic membership.
 
-The first version checks a nonempty, immutable group of actor incarnations and
-a finite workload. It observes direct method reports; it neither runs the
-multicast protocol nor decides its ordering. Recovery and dynamic membership
-are outside this design. Section 10 identifies the contracts needed later.
+The specification defines the observation contract. Youssef confirmed
+the TOM agreements relayed by Abdallah on 4 November 2026. The
+specification marks these agreements **C**. Adapter and scheduling
+choices remain proposals unless explicitly confirmed.
 
-The implementation can use ordinary Java 8 classes and collections under the
-existing Eclipse `src` directory, with no dependencies or build-system changes.
-Proposed packages are `edu.polytech.verifier` and
-`edu.polytech.verifier.tests`. No records, newer collection factories, runtime
-inheritance or TOM implementation classes are required.
+The implementation uses Java 8 classes in `edu.polytech.verifier` and
+`edu.polytech.verifier.tests`, under the Eclipse `src` directory. It needs
+no additional dependencies. The later integration adapters are proposals
+that the group still needs to agree on.
 
 ### 1.1 Current integration state
 
@@ -621,12 +617,11 @@ itself is reported as a harness error where possible and is never a successful
 scenario. Runner cleanup and process termination policy remain adapter design
 questions; the independent verifier needs neither.
 
-The current TOM listener exposes sender and payload but not full packet identity.
-Youssef plans to return TOM identity from `multicast()` and expose it in delivery
-callbacks in a future PR; that API is not available yet. The approved envelope
-can identify application messages through the existing opaque payload path.
-Matching solely by workload bytes is invalid when separate messages contain
-equal bytes. No teammate API is changed by this document.
+The TOM delivery callback exposes the sender ID, incarnation, sequence
+number and payload. The `multicast()` call returns the TOM sequence
+number. The application envelope carries the verifier's separate
+message ID through TOM's opaque payload. That ID distinguishes
+application messages even when their workload bytes are identical.
 
 ### 9.3 Application envelope version 1
 

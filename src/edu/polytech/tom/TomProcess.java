@@ -55,9 +55,11 @@ public class TomProcess implements TotalOrderMulticast {
   }
 
   @Override
-  public void multicast(byte[] payload) {
+  public long multicast(byte[] payload) {
     clock++;
-    sendToAll(TomMessage.data(self, incarnation, sequence++, clock, payload));
+    long id = sequence++;
+    sendToAll(TomMessage.data(self, incarnation, id, clock, payload));
+    return id;
   }
 
   /* To call when the group says that the member "id" is dead. */
@@ -176,7 +178,7 @@ public class TomProcess implements TotalOrderMulticast {
       acks.remove(first.id());
 
       if (listener != null)
-        listener.delivered(first.sender, first.payload);
+        listener.delivered(first.sender, first.incarnation, first.sequence, first.payload);
     }
   }
 

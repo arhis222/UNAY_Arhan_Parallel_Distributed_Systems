@@ -61,7 +61,7 @@ public class TomProcessTest {
       final List<String> mine = new ArrayList<String>();
       delivered.add(mine);
       procs[i] = new TomProcess(i, 1, ids, (to, packet) -> links[me * n + to].packets.add(packet));
-      procs[i].setListener((sender, payload) -> mine.add(new String(payload)));
+      procs[i].setListener((sender, incarnation, sequence, payload) -> mine.add(new String(payload)));
     }
   }
 
@@ -179,6 +179,27 @@ public class TomProcessTest {
     run(new Random(1));
     for (int i = 0; i < n; i++)
       check(delivered.get(i).toString().equals("[a]"), "member " + i + " delivers a, its ACK came before the DATA");
+  }
+
+  // multicast returns the sequence number
+  static void testIdentity() {
+    setup(3);
+    final List<List<String>> identities = new ArrayList<List<String>>();
+
+    for (int i = 0; i < n; i++) {
+      final List<String> mine = new ArrayList<String>();
+      identities.add(mine);
+      procs[i].setListener((sender, incarnation, sequence, payload) ->
+          mine.add(sender + "." + incarnation + "#" + sequence + ":" + new String(payload)));
+    }
+
+    long first = procs[1].multicast("a".getBytes());
+    long second = procs[1].multicast("b".getBytes());
+    run(new Random(1));
+    check(first == 0 && second == 1, "multicast returns the sequence number: 0 then 1");
+
+    for (int i = 0; i < n; i++)
+      check(identities.get(i).toString().equals("[1.1#0:a, 1.1#1:b]"), "member " + i + " delivers a and b with their identities");
   }
 
   static void testFiveMembers() {
@@ -328,6 +349,7 @@ public class TomProcessTest {
     testOneSender();
     testSeveralSenders();
     testAckArrivesBeforeData();
+    testIdentity();
     testFiveMembers();
     testManyMessagesAtOnce();
     testMemberDiesBeforeAck();

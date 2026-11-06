@@ -2,7 +2,7 @@
 
 Author: Abdallah ABDELSADEK
 
-Status: Draft for group review; extension contracts remain open
+Status: Draft for group review; failure and membership rules still need agreement
 
 Date: 1 November 2026
 
@@ -10,11 +10,9 @@ Last revised: 4 November 2026
 
 ## 1. Purpose and authority
 
-The Group Verifier observes application deliveries and lifecycle events for
-one multicast group. It checks whether the observed execution satisfies the
-agreed multicast properties. The common scenario runner supplies finite
-workloads and lifecycle actions, collects the observations needed for checking,
-and reports the execution outcome.
+The Group Verifier checks delivered messages and actor lifecycle events for
+one multicast group. The scenario runner generates a finite workload,
+triggers lifecycle actions and reports the results.
 
 This document distinguishes four kinds of statement:
 
