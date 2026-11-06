@@ -17,13 +17,35 @@ public class TomProcess implements TotalOrderMulticast {
     void send(int to, byte[] packet);
   }
 
+  /* The logical clock. A TomProcess counts by itself, unless it is given another clock. */
+  public interface Clock {
+    /* A local event, like sending a packet: gives a number bigger than all the ones given before. */
+    long tick();
+
+    /* A packet with the timestamp t arrives: gives a number bigger than t and than all the ones before. */
+    long receive(long t);
+  }
+
+  private static class Counter implements Clock {
+    long value;
+
+    public long tick() {
+      return ++value;
+    }
+
+    public long receive(long t) {
+      value = Math.max(value, t) + 1;
+      return value;
+    }
+  }
+
   private final int self;
   private final int incarnation;
   private final Set<Integer> members; // all the members, me included
   private final Transport transport;
   private Listener listener;
 
-  private long clock;
+  private Clock clock = new Counter();
   private long sequence; // number of the next message I multicast
 
   // DATA received and not delivered yet
@@ -54,12 +76,40 @@ public class TomProcess implements TotalOrderMulticast {
     listener = l;
   }
 
+  /* To use another clock than the counter of this TomProcess, before anything is sent. */
+  public void setClock(Clock c) {
+    clock = c;
+  }
+
   @Override
   public long multicast(byte[] payload) {
-    clock++;
     long id = sequence++;
-    sendToAll(TomMessage.data(self, incarnation, id, clock, payload));
+    sendToAll(TomMessage.data(self, incarnation, id, clock.tick(), payload));
     return id;
+  }
+
+  /* The sequence number of the next message, to go on with it in the next TomProcess. */
+  public long nextSequence() {
+    return sequence;
+  }
+
+  public void setNextSequence(long sequence) {
+    this.sequence = sequence;
+  }
+
+  /* True when everything received was delivered and nothing is waited for after a death. */
+  public boolean finished() {
+    return pending.isEmpty() && !waitingLeftover();
+  }
+
+  /*
+   * To call when a member is removed from a group that gives the same packets of this
+   * member to everybody (the Group does): nothing is waited for from it any more,
+   * and no LEFTOVER is needed.
+   */
+  public void removeMember(int id) {
+    if (members.remove(id))
+      tryDeliver();
   }
 
   /* To call when the group says that the member "id" is dead. */
@@ -75,8 +125,7 @@ public class TomProcess implements TotalOrderMulticast {
         left.add(m);
     }
 
-    clock++;
-    byte[] packet = TomMessage.leftover(id, self, clock, left).toBytes();
+    byte[] packet = TomMessage.leftover(id, self, clock.tick(), left).toBytes();
 
     for (int member : members) {
       if (member != self)
@@ -94,7 +143,7 @@ public class TomProcess implements TotalOrderMulticast {
     if (dead.contains(msg.from))
       return;
 
-    clock = Math.max(clock, msg.clock) + 1; // horloge de Lamport
+    clock.receive(msg.clock);
 
     if (msg.type == TomMessage.DATA)
       receivedData(msg);
@@ -110,8 +159,7 @@ public class TomProcess implements TotalOrderMulticast {
     if (seen.add(data.id()))
       pending.add(data);
 
-    clock++;
-    sendToAll(TomMessage.ack(data, self, clock)); // Send ACK
+    sendToAll(TomMessage.ack(data, self, clock.tick())); // Send ACK
   }
 
   private void receivedAck(TomMessage ack) {

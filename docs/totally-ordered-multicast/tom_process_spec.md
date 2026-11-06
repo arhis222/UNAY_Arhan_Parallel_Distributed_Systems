@@ -3,9 +3,10 @@
 
 ## 1. What it is
 
-`TomProcess` is the multicast of one member. There is one `TomProcess` per
-actor. It runs the protocol of the spec (clock, pending queue, ACKs, delivery)
-without failures for now.
+`TomProcess` is the multicast of one member of a group that does not change. It
+runs the protocol of the spec (clock, pending queue, ACKs, delivery), and it can
+handle members that die. When the group changes (members that leave, join or come
+back), `TomMember` gives a new `TomProcess` to each view, see `tom_version3_spec.md`.
 
 ## 2. How to create it
 
@@ -20,10 +21,24 @@ without failures for now.
 
 ## 3. What we can call
 
-- `setListener(l)`: `l.delivered(senderId, payload)` is called for each
-  message, in the same order on every member.
-- `multicast(payload)`: sends the payload to all members, including me.
+- `setListener(l)`: `l.delivered(senderId, incarnation, sequence, payload)` is
+  called for each message, in the same order on every member.
+- `multicast(payload)`: sends the payload to all members, including me. It
+  returns the sequence number of the message.
 - `onPacket(packet)`: to call each time a packet arrives for this member.
+- `memberDied(id)`: the member is dead. It runs the LEFTOVER exchange of
+  `tom_version2_spec.md`, for a group where the survivors may not have the same
+  packets of the dead member.
+- `removeMember(id)`: the member is removed and nothing is waited for from it. For
+  a group that gives the same packets of this member to everybody, like the Group:
+  no LEFTOVER is needed.
+- `nextSequence()`, `setNextSequence(n)`: to go on with the sequence numbers in
+  the next `TomProcess`, so that a message identity is not used twice.
+- `finished()`: true when everything received was delivered and nothing is
+  waited for.
+- `setClock(c)`: to use another logical clock than the counter of the
+  `TomProcess` (`TomMember` gives it `TaskClock`). A clock has `tick()` for a
+  packet that is sent and `receive(t)` for a packet that arrives with the timestamp `t`.
 
 
 ## Example of what should happen
