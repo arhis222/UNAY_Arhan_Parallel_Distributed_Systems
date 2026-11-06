@@ -407,6 +407,94 @@ extensions. The existing `TomGroupTest` survivor regression remains separate
 from verifier failure semantics. Eclipse configuration was preserved; new
 Eclipse UI validation and final integrated submission validation remain pending.
 
+## One real death without reinsertion — 7 November 2026
+
+Added a separate `SurvivorVerifier` final checker; `GroupVerifier` and the
+fixed-group runner are unchanged. Originals are copied before invocation,
+confirmation is explicit, and uncertain originals remain recorded as optional
+all-or-none messages (with an uncertainty diagnostic). Confirmed surviving-sender
+messages are mandatory at each survivor, including messages omitted everywhere.
+Only application reports supply histories; dead actors' histories are excluded.
+Final survivor histories must match exactly, with original content and no duplicates.
+Missing mandatory deliveries remain incomplete; final disagreement/partial
+all-or-none delivery is unsuccessful with established completion evidence.
+Concrete integrity/observation violations take precedence over timeout.
+
+`VerifierSurvivorGroupTest` forms three actual Actors through GroupManager and
+TomMember. Actor 2 sends one independently registered message; that finite
+pre-death traffic is drained before its explicit suicide. Actual `Actor.dead()`
+is observed separately from removal views. Both survivors must install exactly
+view members 1 and 3 before each sends two known post-removal messages. Planned
+submission coverage is independently five invocations, not derived from reports.
+The result requires all four required messages at both survivors, the dead
+sender's all-or-none outcome, and identical final survivor histories.
+
+Completion evidence in this controlled fixture comes from opaque TOM packet
+transit counts at a delegating Group boundary. Every forwarded TOM send is
+counted; every corresponding Group receipt decrements its source/destination
+count before normal dispatch. No packet type, DATA reception, ACK decision or
+payload is inspected for verification. Group routing and delivery are unchanged.
+After actual death, outstanding packets addressed to the dead recipient cannot
+produce further work and are excluded; all traffic toward survivors must drain.
+Pre-death draining avoids unresolved dead-source packets in this particular
+scenario. With finite invocations returned, no active dispatch at assessment,
+all removal views observed, all expected application messages accounted for,
+and zero surviving-target transit counts, the fixture establishes its finite
+TOM observation boundary. A dropped or unreported surviving-target packet
+prevents completion rather than being silently erased. This is scoped evidence
+for this synchronous event-pump fixture, not a general Group quiescence API or
+stall detector. Quiet time and empty verifier obligations alone are not used.
+
+Exact Java 8 commands (classes outside the repository):
+
+```sh
+mktemp -d /tmp/sar-survivor.XXXXXX
+# Returned /tmp/sar-survivor.h0R30g
+/home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/javac -encoding UTF-8 -Xlint:all -sourcepath src -d /tmp/sar-survivor.h0R30g src/edu/polytech/verifier/tests/SurvivorVerifierTest.java src/edu/polytech/verifier/tom/tests/VerifierSurvivorGroupTest.java src/edu/polytech/verifier/tom/tests/VerifierTomGroupTest.java src/edu/polytech/verifier/tests/VerifierBaselineTest.java src/edu/polytech/verifier/tom/tests/ApplicationEnvelopeCodecTest.java src/edu/polytech/tom/tests/*Test.java
+/home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-survivor.h0R30g edu.polytech.verifier.tests.SurvivorVerifierTest
+timeout 30s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-survivor.h0R30g edu.polytech.verifier.tom.tests.VerifierSurvivorGroupTest
+timeout 45s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-survivor.h0R30g edu.polytech.verifier.tom.tests.VerifierTomGroupTest
+timeout 45s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-survivor.h0R30g edu.polytech.verifier.tests.VerifierBaselineTest
+timeout 45s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-survivor.h0R30g edu.polytech.verifier.tom.tests.ApplicationEnvelopeCodecTest
+timeout 45s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-survivor.h0R30g edu.polytech.tom.tests.TomGroupTest
+timeout 45s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-survivor.h0R30g edu.polytech.tom.tests.TomMessageTest
+timeout 45s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-survivor.h0R30g edu.polytech.tom.tests.TomProcessTest
+timeout 45s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-survivor.h0R30g edu.polytech.tom.tests.TomMemberTest
+timeout 45s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-survivor.h0R30g edu.polytech.tom.tests.TomRandomDeathsTest
+# After the final survivor-check/test refinement, recompiled and reran both new mains:
+/home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/javac -encoding UTF-8 -Xlint:all -sourcepath src -d /tmp/sar-survivor.h0R30g src/edu/polytech/verifier/tests/SurvivorVerifierTest.java src/edu/polytech/verifier/tom/tests/VerifierSurvivorGroupTest.java
+/home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-survivor.h0R30g edu.polytech.verifier.tests.SurvivorVerifierTest
+timeout 30s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-survivor.h0R30g edu.polytech.verifier.tom.tests.VerifierSurvivorGroupTest
+```
+
+Both compilations exited 0 with no `-Xlint:all` warnings. Every test process
+exited 0; no external timeout expired. Final new-test summaries:
+
+```text
+SurvivorVerifierTest: 15 simulated-report cases passed
+VerifierSurvivorGroupTest: SUCCESSFUL; actual death, both removal views, 4 required messages, identical survivor histories
+```
+
+Regressions passed: fixed-group integration at 0/5 ms (each six confirmations,
+18 deliveries and identical histories), 57 verifier baseline groups, 225 codec
+checks, and all five TOM mains (`TomMessageTest`, `TomProcessTest`,
+`TomMemberTest`, `TomGroupTest`, `TomRandomDeathsTest`). The last reports 2,000
+simulated random-death runs; that is TOM evidence, not random-failure verifier
+integration. The new independent cases cover optional all/none/partial outcomes,
+mandatory omission by everyone (both missing receiver/message pairs), final
+order disagreement, uncertainty, unresolved provisional state, dead-history
+exclusion, defensive original copying, corruption, duplicates, missing removal,
+timeout and reporting gaps. Invalid traces pass their tests only when rejected.
+
+Limits: exactly one declared death and nonempty fixed survivors; no reinsertion,
+voluntary membership changes, random actor failure or failure under sustained
+load is implemented here. The real scenario exercises the dead message's
+all-delivered branch; none/partial branches use simulated reports. Lifecycle and
+completion observations are trusted adapter inputs to the independent checker.
+The fixture retains TomGroupTest's bounded waits and standalone-process cleanup.
+No teammate sources or Eclipse configuration changed. Fresh Eclipse UI validation
+of these additions and final integrated submission validation remain pending.
+
 ## Limitations and remaining integration
 
 - Simulated reports validate the checker against supplied evidence, not the
@@ -416,7 +504,8 @@ Eclipse UI validation and final integrated submission validation remain pending.
   0/5 ms, without a watchdog or a general configurable execution deadline.
 - The runner connects the core and codec to real Group/TOM components for
   a fixed no-failure workload at a configurable period. It adds no general observation adapter,
-  task-clock integration, failure or dynamic-membership checker.
+  task-clock integration or dynamic-membership checker. A separate single-death
+  survivor checker is now tested as recorded above.
 - The core requires sequential calls. No concurrent-use guarantee or monitor
   adapter is provided. Memory grows with actual registrations, delivery reports
   and diagnostics; snapshots copy observed evidence. This is not an unbounded
