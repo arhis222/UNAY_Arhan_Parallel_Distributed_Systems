@@ -259,6 +259,51 @@ Sources remain under `src`, use Java 8 standard-library APIs, and require no
 Eclipse configuration changes. The new files and final integrated submission
 still need fresh-workspace Eclipse import/build/run verification.
 
+## Provisional multicast accounting — 6 November 2026
+
+Added protocol-independent `beginMulticast` and `confirmMulticast` observations.
+Beginning copies the original, reserves the slot and creates all recipient
+obligations without confirmation. Early deliveries can discharge obligations;
+confirmation counts once without recreating them. Immutable results expose
+`provisionalMessages()`, sparse PROVISIONAL slot descriptions and attributed
+`PROVISIONAL_SUBMISSION` incomplete diagnostics. Unresolved or uncertain
+submissions prevent baseline success even when coverage and deliveries are
+otherwise complete. Atomic registration still uses one report event.
+
+Commands executed from the repository root with installed Temurin Java 8:
+
+```sh
+mktemp -d /tmp/sar-verifier-provisional.XXXXXX
+# Returned /tmp/sar-verifier-provisional.eHbrnS
+/home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/javac -version
+/home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -version
+/home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/javac -encoding UTF-8 -Xlint:all -d /tmp/sar-verifier-provisional.eHbrnS src/edu/polytech/verifier/*.java src/edu/polytech/verifier/tests/*.java src/edu/polytech/verifier/tom/*.java src/edu/polytech/verifier/tom/tests/*.java
+/home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-verifier-provisional.eHbrnS edu.polytech.verifier.tests.VerifierBaselineTest
+/home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-verifier-provisional.eHbrnS edu.polytech.verifier.tom.tests.ApplicationEnvelopeCodecTest
+```
+
+Tool versions were `javac 1.8.0_392` and Temurin `1.8.0_392-b08`.
+Compilation exited 0 with no warnings under `-Xlint:all`; both test processes
+exited 0 without `-ea`:
+
+```text
+VerifierBaselineTest: 57 simulated-report test groups passed
+ApplicationEnvelopeCodecTest: 225 checks passed
+```
+
+Eight new groups cover early delivery and later confirmation, independent
+original copying, immutable provisional snapshots, unresolved/uncertain records
+despite satisfied coverage, and repeated, unknown, uncertain, late and
+post-workload-close confirmation. Rejections assert diagnostic category/context
+and unchanged histories, obligations and counters. Confirmation after workload
+closure is rejected as accounting misuse; callers must finish invocation
+confirmation before closing the workload, as required by the adapter design.
+All previous 49 baseline groups still pass. These remain simulated-report tests:
+no TOM adapter, invalid-delivery hook, transport integration, runtime lifecycle,
+watchdog or membership behavior was added. Class files stayed under `/tmp`.
+Eclipse configuration was unchanged; no new Eclipse UI validation was performed.
+The earlier manual Eclipse evidence applies to its recorded commit only.
+
 ## Limitations and remaining integration
 
 - Simulated reports validate the checker against supplied evidence, not the
