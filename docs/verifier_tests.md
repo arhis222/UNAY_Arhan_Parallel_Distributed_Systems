@@ -574,6 +574,90 @@ by this test. No new quiescence API or recovery mechanism was added. Java 8 and
 Eclipse configuration are preserved; no new Eclipse UI validation was performed.
 Final integrated fresh-workspace validation remains required.
 
+## Runtime-triggered random actor failure — 7 November 2026
+
+Added a separate `VerifierRandomFailureGroupTest`; the explicit-suicide test
+remains unchanged. Each of two runs forms three real Group/TOM actors with
+runtime failure probability zero. Only actor 2 is constructed fail-capable;
+the driver and actors 1 and 3 are protected. After all initial views and
+incarnations are checked, actor 2 sends one independently recorded message and
+that finite traffic drains. Only then the fixture enables the actual runtime
+failure mechanism with **seed 123 and probability 0.35**. An actor-owned eligible
+probe posts bounded successive callbacks (at most 100 executions, separated by
+1 ms), letting Executor's seeded sampling trigger failure before a callback.
+No suicide, manual kill, artificial exception or alternate failure detector is
+used. The probe's failure listener runs on the protected driver and must report
+`IllegalStateException("Simulated task failure")`; `Actor.dead()` must also be
+true. In both observed runs, two probe callbacks executed before runtime failure.
+
+Actual death is recorded separately from each survivor's installed removal view.
+Both exact survivor views must be observed before post-removal traffic starts.
+Each survivor then sends two messages at the configured period (0 ms or 5 ms).
+The first send is posted immediately; every successor uses a separate runnable,
+yielding at 0 ms and delaying at least 5 ms after the preceding send completes
+at 5 ms. A monotonic elapsed-time assertion checks positive pacing. Expectations
+are send-side originals registered before multicast, followed by confirmation
+only on normal live return. Five returned submissions are required independently
+of callbacks; four are mandatory survivor messages. Receiver-bound envelope
+reports go through the existing `SurvivorVerifier` for content, duplicates,
+mandatory deliveries, final full-history equality and dead-sender all-or-none.
+
+Completion uses the same opaque transit accounting as the explicit-death fixture,
+with no DATA-reception evidence or protocol decision changes. Survivor-target
+traffic must drain, all paced sends must finish, and all mandatory deliveries
+must arrive. Missing death/removal evidence or timeout fails the test process;
+none is accepted as a successful scenario. The runtime failure configuration
+is reset to probability zero in `finally`, using the synchronized runtime API
+without relying on the pump; an outer final reset also covers failures between
+runs. Pacing callbacks are disabled during cleanup. Standalone process exit
+matches the existing integration fixtures.
+
+Exact Java 8 commands, with generated classes outside the repository:
+
+```sh
+mktemp -d /tmp/sar-random-verifier.XXXXXX
+# Returned /tmp/sar-random-verifier.gItXTu
+/home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/javac -encoding UTF-8 -Xlint:all -sourcepath src -d /tmp/sar-random-verifier.gItXTu src/edu/polytech/verifier/tom/tests/*Test.java src/edu/polytech/verifier/tests/*Test.java src/edu/polytech/tom/tests/*Test.java
+timeout 30s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-random-verifier.gItXTu edu.polytech.verifier.tom.tests.VerifierRandomFailureGroupTest
+timeout 45s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-random-verifier.gItXTu edu.polytech.verifier.tom.tests.VerifierTomGroupTest
+timeout 45s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-random-verifier.gItXTu edu.polytech.verifier.tom.tests.VerifierSurvivorGroupTest
+timeout 45s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-random-verifier.gItXTu edu.polytech.verifier.tom.tests.VerifierReinsertionGroupTest
+timeout 45s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-random-verifier.gItXTu edu.polytech.verifier.tests.SurvivorVerifierTest
+timeout 45s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-random-verifier.gItXTu edu.polytech.verifier.tests.VerifierBaselineTest
+timeout 45s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-random-verifier.gItXTu edu.polytech.verifier.tom.tests.ApplicationEnvelopeCodecTest
+timeout 45s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-random-verifier.gItXTu edu.polytech.tom.tests.TomGroupTest
+timeout 45s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-random-verifier.gItXTu edu.polytech.tom.tests.TomMessageTest
+timeout 45s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-random-verifier.gItXTu edu.polytech.tom.tests.TomProcessTest
+timeout 45s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-random-verifier.gItXTu edu.polytech.tom.tests.TomMemberTest
+timeout 45s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-random-verifier.gItXTu edu.polytech.tom.tests.TomRandomDeathsTest
+```
+
+Compilation exited 0 with no `-Xlint:all` warnings. All test processes exited 0;
+no external timeout expired. New test output:
+
+```text
+VerifierRandomFailureGroupTest: period=0 ms seed=123 probability=0.35 probeExecutions=2 SUCCESSFUL; runtime death, both removal views, 4 required messages, identical survivor histories
+VerifierRandomFailureGroupTest: period=5 ms seed=123 probability=0.35 probeExecutions=2 SUCCESSFUL; runtime death, both removal views, 4 required messages, identical survivor histories
+```
+
+All regressions passed: fixed-group integration at 0/5 ms, separate explicit
+suicide integration, reinsertion integration/replay negative case, 15 independent
+survivor cases, 57 baseline groups, 225 codec checks and all five TOM test mains.
+`TomRandomDeathsTest` reports 2,000 simulated random-death runs; it remains
+component evidence separate from the new actual-runtime scenario.
+
+Limits: one seed, one fail-capable actor, one real death per run, and finite
+post-removal workloads. The probe exercises random runtime failure after readiness,
+not failure during a multicast or randomized membership choice. Dead-sender
+traffic is completed before enabling failures, so this real scenario exercises
+all-delivered; none/partial outcomes remain independent simulated cases. A seed
+does not guarantee identical event scheduling across environments. The bounded
+probe can exhaust or wait out the budget without a death, which fails rather
+than substituting an explicit kill. No reinsertion, concurrent membership action,
+production watchdog or new runtime/TOM API is added. Existing verifier and
+teammate sources and Eclipse configuration are unchanged. No new Eclipse UI
+validation was performed; final fresh-workspace validation remains required.
+
 ## Limitations and remaining integration
 
 - Simulated reports validate the checker against supplied evidence, not the
