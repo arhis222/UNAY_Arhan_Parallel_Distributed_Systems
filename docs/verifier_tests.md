@@ -404,8 +404,8 @@ groups in the same JVM. This tests fixed finite workloads and minimum per-sender
 spacing, not precise wall-clock timing, arbitrary workload configuration,
 protocol-wide traffic exhaustion, watchdog behavior or failure/membership
 extensions. The existing `TomGroupTest` survivor regression remains separate
-from verifier failure semantics. Eclipse configuration was preserved; new
-Eclipse UI validation and final integrated submission validation remain pending.
+from verifier failure semantics. At this stage Eclipse configuration was
+preserved; the final integrated Eclipse check is recorded at the end.
 
 ## One real death without reinsertion — 7 November 2026
 
@@ -492,8 +492,8 @@ load is implemented here. The real scenario exercises the dead message's
 all-delivered branch; none/partial branches use simulated reports. Lifecycle and
 completion observations are trusted adapter inputs to the independent checker.
 The fixture retains TomGroupTest's bounded waits and standalone-process cleanup.
-No teammate sources or Eclipse configuration changed. Fresh Eclipse UI validation
-of these additions and final integrated submission validation remain pending.
+This stage changed only the verifier sources and tests. Later sections record
+the integrated scenarios and final Eclipse validation.
 
 ## Real death and reinsertion — 7 November 2026
 
@@ -737,33 +737,22 @@ The observation window provides bounded evidence for no earlier newcomer traffic
 and no post-departure delivery; it is not proof of protocol-wide quiescence or
 absence of arbitrarily late events. Period tests establish minimum offered-load
 spacing, not precise wall-clock scheduling. Standalone-process cleanup follows
-TomGroupTest; no runtime shutdown API was added. Eclipse configuration remains
-unchanged, no new Eclipse UI validation was performed, and final integrated
-fresh-workspace verification remains required.
+TomGroupTest; no runtime shutdown API was added.
 
-## Limitations and remaining integration
+## Final integrated validation - 7 November 2026
 
-- Simulated reports validate the checker against supplied evidence, not the
-  faithfulness/completeness of future real reporting adapters.
-- Independent baseline timeout/interruption cases supply close reasons
-  explicitly. Runner integration tests exercise bounded waiting and periods
-  0/5 ms, without a watchdog or a general configurable execution deadline.
-- The runner connects the core and codec to real Group/TOM components for
-  a fixed no-failure workload at a configurable period. It adds no general observation adapter,
-  task-clock integration or dynamic-membership checker. A separate single-death
-  survivor checker is now tested as recorded above.
-- The core requires sequential calls. No concurrent-use guarantee or monitor
-  adapter is provided. Memory grows with actual registrations, delivery reports
-  and diagnostics; snapshots copy observed evidence. This is not an unbounded
-  stress or exhaustive correctness proof.
-- The packet regression covers DATA/ACK/LEFTOVER representations. It establishes
-  no multicast ordering, failure-detector or no-replay guarantee.
-- Command-line validation generated classes outside the repository. The separate
-  manual Eclipse check above validates import/build and the two stated entry
-  points at `fc7e574`; final integrated submission verification remains pending.
+The final project was imported into an empty Eclipse 2026-09 workspace without
+extra configuration. Eclipse reported 0 errors and 26 warnings in existing
+course and test sources. `VerifierJoinLeaveGroupTest` passed from Eclipse with
+both 0 ms and 5 ms sending periods.
 
-Further work includes a general reviewed observation adapter and broader scenario
-configuration, task/TOM clock integration where required, and concrete protocol-wide
-completion evidence. Initial Group readiness and queue transport are exercised
-by the new test rather than remaining absent connections. Verifier failure and
-reinsertion boundaries remain outside this baseline integration result.
+All project test mains also passed with the Eclipse-built classes. The final
+set covers the runtime, Group, TOM, application envelope, baseline verifier,
+survivor agreement, explicit and random failure, resurrection/reinsertion,
+forbidden replay, voluntary join and leave. `VerifierReinsertionGroupTest` ran
+once with explicit suicide and once with a runtime random failure.
+
+The tests use finite workloads and bounded waits. They demonstrate the tested
+scenarios; they are not a proof for every possible schedule or an indefinitely
+running workload. The verifier classes are called sequentially by the scenario
+runners.

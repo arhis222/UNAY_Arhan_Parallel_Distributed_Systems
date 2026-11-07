@@ -26,6 +26,7 @@ import edu.polytech.verifier.tom.ApplicationEnvelopeCodec;
 
 /** Three completed application workloads at unambiguous view boundaries; not a general membership policy. */
 public final class VerifierReinsertionGroupTest {
+    private static final long FAILURE_SEED = 731L;
     /** Independent send-side oracle, shared by the real scenario and replay negative case. */
     private static final class Reports {
         private final Map<MessageId, byte[]> originals = new LinkedHashMap<>();
@@ -79,6 +80,11 @@ public final class VerifierReinsertionGroupTest {
     private final Set<MessageId> postReturn = new LinkedHashSet<>();
     private Throwable callbackFailure;
     private boolean deathObserved, removalsObserved, admissionObserved;
+    private final boolean randomFailure;
+
+    private VerifierReinsertionGroupTest(boolean randomFailure) {
+        this.randomFailure = randomFailure;
+    }
 
     private static void check(boolean ok, String detail) { if (!ok) throw new AssertionError(detail); }
     private void onPump(Runnable action) throws Exception {
@@ -144,7 +150,8 @@ public final class VerifierReinsertionGroupTest {
             GroupManager manager = new GroupManager(3);
             for (int i = 1; i <= 3; i++) {
                 final int member = i;
-                actors[i] = new Actor("reinsertion-verifier-" + i, false);
+                actors[i] = new Actor("reinsertion-verifier-" + (randomFailure ? "random-" : "explicit-") + i,
+                        randomFailure && i == 2);
                 manager.join(actors[i], i, group -> attach(member, group));
             }
         });
@@ -154,10 +161,18 @@ public final class VerifierReinsertionGroupTest {
         final ActorId[] old = new ActorId[1];
         onPump(() -> {
             old[0] = ids[2];
-            actors[2].suicide();
-            deathObserved = actors[2].dead();
-            check(deathObserved, "Actual death not observed");
+            if (randomFailure) {
+                Executor.self().configureFailures(1, FAILURE_SEED);
+                Task probe = actors[2].newTask("reinsertion-failure-probe");
+                check(probe.canFail(), "Random failure probe cannot fail");
+                probe.post(() -> { throw new AssertionError("Random failure did not run first"); });
+            } else {
+                actors[2].suicide();
+            }
         });
+        check(waitFor(() -> actors[2].dead()), "Actor death timeout");
+        Executor.self().configureFailures(0, FAILURE_SEED);
+        onPump(() -> deathObserved = true);
         check(waitFor(() -> sees(1, 1, 3) && sees(3, 1, 3)), "Removal views timeout");
         onPump(() -> { removalsObserved = true; workload(2, 1, 3); });
         check(waitFor(reports::complete), "Absent-actor workload timeout");
@@ -183,7 +198,9 @@ public final class VerifierReinsertionGroupTest {
             reports.assess(ids[1], ids[3], ids[2], postReturn);
             check(reports.histories.get(ids[1]).size() == 8 && reports.histories.get(ids[2]).size() == 3,
                     "Incorrect survivor/returning delivery totals");
-            System.out.println("VerifierReinsertionGroupTest: SUCCESSFUL; death/removal/new incarnation observed; survivors 8 each, returning 3, no earlier replay");
+            System.out.println("VerifierReinsertionGroupTest: "
+                    + (randomFailure ? "random failure" : "explicit suicide")
+                    + " SUCCESSFUL; death/removal/new incarnation observed; survivors 8 each, returning 3, no earlier replay");
         });
     }
     private static void rejectsReplay() {
@@ -206,8 +223,13 @@ public final class VerifierReinsertionGroupTest {
     }
     public static void main(String[] args) {
         int status = 0;
-        try { rejectsReplay(); new VerifierReinsertionGroupTest().scenario(); }
+        try {
+            rejectsReplay();
+            new VerifierReinsertionGroupTest(false).scenario();
+            new VerifierReinsertionGroupTest(true).scenario();
+        }
         catch (Throwable failure) { failure.printStackTrace(); status = 1; }
+        finally { Executor.self().configureFailures(0, FAILURE_SEED); }
         System.exit(status); // Executor has no shutdown API; same standalone cleanup as TomGroupTest.
     }
 }

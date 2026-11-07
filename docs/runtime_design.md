@@ -114,3 +114,8 @@ with the Eclipse Java compiler and bundled Java runtime, including the
 channel and queue stress settings above. The tracked project preferences
 already specify UTF-8. The import still produced an encoding warning, so
 its workspace handling needs to be checked during the final UI validation.
+
+On 7 November 2026, the integrated project was imported into another empty
+Eclipse 2026-09 workspace. Eclipse built it with 0 errors and 26 warnings in
+existing course and test sources. `VerifierJoinLeaveGroupTest` was then run
+from Eclipse as a Java application; its 0 ms and 5 ms cases both passed.

@@ -11,7 +11,7 @@ Polytech Grenoble, 2026
 | Youssef KIRLOS | youssef.kirlos@etu.univ-grenoble-alpes.fr | Group member |
 | Abdallah ABDELSADEK | abdallah.abdelsadek@etu.univ-grenoble-alpes.fr | Group member |
 
-We will use Arhan UNAY's existing SAR course repository:
+The project uses Arhan UNAY's existing SAR course repository:
 [UNAY_Arhan_Parallel_Distributed_Systems](https://github.com/arhis222/UNAY_Arhan_Parallel_Distributed_Systems).
 
 ## Branches and submission
@@ -21,18 +21,16 @@ We will use Arhan UNAY's existing SAR course repository:
 - Earlier coursework: `lesson-arhan-personal-master`.
 - Deadline stated in the course email: 8 November 2026, before midnight.
 
-Members will merge their work into `project-master`. The completed and tested
-project will then be merged into `master` before the deadline. The professor
-should use `master` to evaluate the final submission, as required by the PDF.
-For now, `master` contains the initial project setup; it is not a finished
-submission.
+Development was integrated on `project-master`. The tested version is also on
+`master`, which is the branch to use for the final submission as required by
+the assignment.
 
 `lesson-arhan-personal-master` was Arhan UNAY's original `master` branch for
 individual SAR coursework before the group project. It preserves that work
 separately from the group's project branch.
 
-Each member will also work on a personal branch and contribute commits and
-merges under their own Git identity.
+Each member worked on a personal branch and contributed commits and merges
+under their own Git identity.
 
 | Member | Personal branch | GitHub username |
 | --- | --- | --- |
@@ -41,20 +39,18 @@ merges under their own Git identity.
 | Youssef KIRLOS | `youssef-master` | `youssefkirlos` |
 | Abdallah ABDELSADEK | `abdallah-master` | `abdallahwalid` |
 
-Each member will use their personal branch and merge their work into
-`project-master`. GitHub usernames are listed above; Git commit author names
-will also be recorded as members contribute. Arhan's current Git author name
-is `arhis222`.
+Work from the personal branches was merged into `project-master`. GitHub
+usernames are listed above; Arhan's Git author name is `arhis222`.
 
 ## Project brief
 
 The original assignment is in [project.pdf](docs/project.pdf).
 
-We will build the multicast on the existing `QueueBroker` and `MessageQueue`
+The multicast is built on the existing `QueueBroker` and `MessageQueue`
 platform, using the supplied circular buffers. All actors and tasks will run
 in the same JVM.
 
-The work will cover:
+The project covers:
 
 1. Per-task logical clocks and task termination.
 2. Actors, group creation, membership notifications and failure simulation.
@@ -63,9 +59,9 @@ The work will cover:
 5. Resurrection and reinsertion.
 6. Voluntary joins and departures in a dynamic group.
 
-A group verifier will check delivered messages, their content and their order.
+A group verifier checks delivered messages, their content and their order.
 An actor will not receive messages missed while it was dead after reinsertion.
-Tests will support explicit and random failures, with an adjustable sending
+Tests support explicit and random failures, with an adjustable sending
 period down to 0 ms for burst mode.
 
 ## Repository layout and documentation
@@ -73,8 +69,10 @@ period down to 0 ms for burst mode.
 - `src/`: Java sources and existing course tests.
 - `docs/project.pdf`: original project assignment.
 - `.project`, `.classpath`, `.settings/`: Eclipse project configuration.
-- `Teacher Tests.launch`, `Queue Tests.launch`: existing Eclipse test launchers.
+- `Teacher Tests.launch`, `Queue Tests.launch`: existing channel and queue tests.
 - `Runtime Tests.launch`: task clock, termination and Actor lifecycle tests.
+- `Group Tests.launch`, `Group Dynamic Tests.launch`: group formation,
+  failures and dynamic membership tests.
 - [Runtime specification](docs/runtime_spec.md) and
   [design](docs/runtime_design.md): Arhan's runtime and Actor contribution.
 - [lesson-only-arhans-personal/](lesson-only-arhans-personal/): Arhan's earlier
@@ -83,58 +81,57 @@ period down to 0 ms for burst mode.
 - [Coursework TOM specification](lesson-only-arhans-personal/specs_tom.txt)
   and [design](lesson-only-arhans-personal/design_tom.txt): starting references
   for the project.
-- `docs/`: project assignment and future group specification/design documents.
+- `docs/group_spec.md`, `docs/group_design.md`: Group specification and design.
+- `docs/totally-ordered-multicast/`: TOM specifications and test guide.
+- `docs/verifier_spec.md`, `docs/verifier_design.md`, `docs/verifier_tests.md`:
+  Verifier specification, design and recorded test results.
 
-The coursework TOM documents are preliminary. They must be adapted to the
-project brief, especially the local task runtime, dynamic membership and the
-rule that messages missed during a failure are never replayed to that actor.
+The files under `lesson-only-arhans-personal/` are course references. The
+project documentation is under `docs/`.
 
 ## Eclipse project and tests
 
-The repository root is the Eclipse project directory. Its current Eclipse
+The repository root is the Eclipse project directory. Its Eclipse
 name is `Arhan_UNAY_Channels`, named after the contact member.
 
-Import it through **File > Import > General > Existing Projects into Workspace**
-and select the repository root. The final submission must be checked in a
-fresh Eclipse workspace without additional setup steps.
+Import the repository with **File > Import > General > Existing Projects into
+Workspace**. Eclipse detects the project as `Arhan_UNAY_Channels`. Test classes
+can be opened and run with **Run As > Java Application**. The five `.launch`
+files at the repository root can also be opened directly.
 
-For the existing course tests, open `Teacher Tests.launch` or
-`Queue Tests.launch` and choose **Run As > Java Application**. Both launchers
-enable assertions. These are channel and queue tests, not the project TOM tests.
+| Test stage | Test classes | Status on 7 November 2026 |
+| --- | --- | --- |
+| Existing platform | `ComplianceTests`, `Teacher Tests.launch`, `Queue Tests.launch` | Passed, including 4 clients × 5 channel connections × 32768 bytes and 8 clients × 10 queue connections × 65536 bytes |
+| Runtime and Actors | `RuntimeTest` | Passed; deliberate task termination prints expected stack traces before `RuntimeTest: PASS` |
+| Group | `GroupTest`, `GroupDynamicTest` | Passed; explicit and random failures, reinsertion, join and leave, at 5 ms and 0 ms |
+| TOM protocol | `TomMessageTest`, `TomProcessTest`, `TomRandomDeathsTest` | Passed; includes 2000 random-death runs |
+| TOM with real Group/Actors | `TomMemberTest`, `TomGroupTest` | Passed; no failure, failures, reinsertion and dynamic membership |
+| Verifier unit tests | `ApplicationEnvelopeCodecTest`, `VerifierBaselineTest`, `SurvivorVerifierTest` | Passed; 225 codec checks, 57 baseline groups and 15 survivor cases |
+| Verifier integration | `VerifierTomGroupTest`, `VerifierSurvivorGroupTest`, `VerifierRandomFailureGroupTest`, `VerifierReinsertionGroupTest`, `VerifierJoinLeaveGroupTest` | Passed; 0/5 ms traffic, explicit and random failure, reinsertion with no replay, join and leave |
+| Eclipse | Fresh workspace import and `VerifierJoinLeaveGroupTest` from **Run As > Java Application** | Passed; 0 build errors, 26 warnings in existing course/test sources |
 
-| Test suite | Current status |
-| --- | --- |
-| Existing channel and queue tests | Passed locally, including queue stress test; see docs/runtime_design.md |
-| Logical clocks and Actor lifecycle | RuntimeTest passed locally; see docs/runtime_design.md |
-| Groups and membership | Code and GroupTest are on adam-master; not yet integrated or validated here |
-| TOM without failures | TomMessageTest, TomProcessTest and TomGroupTest (real Actors and Group) pass. Run each test with Run As > Java Application; see docs/totally-ordered-multicast/README.md |
-| TOM with failures, no reinsertion | TomProcessTest, TomRandomDeathsTest (2000 random runs) and TomGroupTest (suicide, load at 5 ms and 0 ms) pass |
-| TOM with resurrection and reinsertion | TomGroupTest (a member comes back and misses what was sent while it was dead) and TomMemberTest pass; see docs/totally-ordered-multicast/tom_version3_spec.md |
-| TOM with dynamic membership | TomGroupTest (join, leave, join while sending) and TomMemberTest (members that are late to install a view) pass |
-| Fresh Eclipse workspace import | Commit 1855c18 imported and built in Eclipse 2026-09; six test suites passed on its class files. UI launch and final integrated submission remain to be checked; see docs/runtime_design.md |
+The integration tests use finite workloads and explicit completion checks. A
+0 ms period is burst mode. `VerifierRandomFailureGroupTest` uses a fixed seed,
+and `VerifierReinsertionGroupTest` runs both explicit suicide and a runtime
+random failure before resurrection.
 
-After the runtime merge on 2 November 2026, RuntimeTest, TomMessageTest,
-TomProcessTest (including failures), ComplianceTests and the channel/queue
-stress tests all passed on the combined code. This is component validation;
-the full Group/TOM/Verifier scenarios are still required.
+Useful package names for Eclipse's **Open Type** dialog are:
 
-Project test commands, sending-period settings and pass/fail results will be
-added here as the corresponding tests are implemented.
+- `edu.polytech.actors.tests`
+- `edu.polytech.groups.tests`
+- `edu.polytech.tom.tests`
+- `edu.polytech.verifier.tests`
+- `edu.polytech.verifier.tom.tests`
 
 ## Contributions
 
-### Work already completed
-
-#### Arhan Unay
+### Arhan UNAY
 
 Arhan's runtime contribution adds per-task logical clocks, pending-event
 cancellation, actor-wide failure, configurable random failures and fresh
 Actor incarnations. The runtime/Actor implementation and component tests are
-complete on `arhan-master`. Tests include failure-flag changes and suicide
-after normal task completion. The Eclipse compiler passes all six existing
-test suites; the expanded runtime test passed ten consecutive runs.
-Group admission and TOM clock integration remain separate team integration
-steps; this does not complete the fault-tolerant multicast.
+complete on `arhan-master` and integrated into the project. Tests include
+failure-flag changes and suicide after normal task completion.
 
 Arhan UNAY completed the initial preparation for the group project:
 
@@ -143,15 +140,23 @@ Arhan UNAY completed the initial preparation for the group project:
 - Prepared the earlier specification and design documents, including the
   initial TOM design, and organised these references in
   `lesson-only-arhans-personal/`.
-- Set up the Eclipse project configuration and the existing channel and queue
-  test launchers. The final project still needs a fresh-workspace import check.
+- Set up the Eclipse project configuration and the channel, queue, runtime and
+  group test launchers.
 - Initialised the group project, added the assignment in `docs/project.pdf`
   and prepared the README with group members and submission instructions.
 - Organised the shared development branch, personal branches and final
   submission branch, while preserving the original coursework branch.
 - Prepared the initial task allocation and integration plan for the group.
 
-#### Youssef Kirlos
+### Adam TAWFIK
+
+Adam implemented the Group layer: initial group formation through the manager,
+peer links over message queues, common views, failure detection, reinsertion,
+voluntary join and leave. `GroupTest` and `GroupDynamicTest` cover formation,
+packet draining, failures, membership changes and burst traffic. The related
+documents are `docs/group_spec.md` and `docs/group_design.md`.
+
+### Youssef KIRLOS
 
 Totally-ordered multicast, developed on `youssef-master` and merged into `project-master`.
 
@@ -170,46 +175,19 @@ Where the files are:
 - Documents: `docs/totally-ordered-multicast/` (`README.md` with the list of files, `tom_spec.md`,
   `tom_process_spec.md`, `tom_version2_spec.md`, `tom_version3_spec.md`).
 
-### Project coordination
+### Abdallah ABDELSADEK
 
-Arhan UNAY is the group's contact member and repository maintainer. Alongside
-his implementation tasks below, he will coordinate communication with the
-professor, track progress with the group and organise integration and final
-submission. Each member remains responsible for their own code, tests,
-documentation, commits and merges.
+Abdallah implemented the application envelope, fixed-group and survivor
+verifiers, and the integration scenarios that connect the Verifier to real
+Actors, Group, queues and TOM. The tests cover no failure, explicit failure,
+seeded random failure, resurrection/reinsertion, forbidden replay, voluntary
+join and leave, and both 0 ms and 5 ms sending periods. The documentation is in
+`docs/verifier_spec.md`, `docs/verifier_design.md` and `docs/verifier_tests.md`.
 
-### Planned project responsibilities
+### Shared integration
 
-The following is our task allocation, not a record of completed work. Each
-member is responsible for the implementation, specification/design notes and
-tests for their part. We will share the failure and recovery work because it
-affects both membership and message ordering.
-
-| Member / branch | Main implementation | Tests and documentation |
-| --- | --- | --- |
-| Arhan UNAY / `arhan-master` | Task runtime and Actor lifecycle: per-task logical clocks, cancelling pending runnables, actor suicide, random failures and the per-task failure flag. Stop all tasks belonging to a failed actor and create fresh tasks on resurrection. | Clock and termination tests, including pending callbacks after death. Runtime/Actor specification and design. Coordinate integration and verify the final Eclipse import. |
-| Adam TAWFIK / `adam-master` | Group layer: initial N-member formation through the group manager, peer links, perfect failure detection and membership listeners. Drop traffic to/from dead members. Manage join, leave and reinsertion requests. | Group formation and membership tests, including delayed traffic from dead actors. Group specification and design. Implement agreed membership transitions jointly with Youssef. |
-| Youssef KIRLOS / `youssef-master` | TOM ordering: message identities, Lamport timestamps, ordered pending queue, acknowledgements and delivery. First implement the no-failure version, then adapt ordering and pending-message handling to actor failures. | No-failure and failure-without-reinsertion tests. Ordering specification and correctness argument. Define safe delivery boundaries for membership transitions jointly with Adam. |
-| Abdallah ABDELSADEK / `abdallah-master` | Group Verifier and scenario runner: direct-method delivery/lifecycle reports, order/content checks and membership-aware expected deliveries. Configurable periodic sends, 0 ms burst mode and repeatable failure scenarios. | Integration scenarios for resurrection/reinsertion and voluntary joins/leaves, with both explicit and random failures. Check that missed messages are never replayed. Document test commands and pass/fail results. |
-
-### Integration and shared work
-
-- Before coding, all four members will agree on the Actor, Group, TOM and
-  Verifier interfaces, message identities and lifecycle notifications.
-- Arhan will provide runtime failure events; Adam will turn them into group
-  notifications. Adam and Youssef will jointly define when a membership
-  change takes effect and which pending messages may be delivered. Removing
-  a dead member from an ACK list alone is not a complete recovery protocol.
-- For resurrection and dynamic membership, Arhan owns task recreation, Adam
-  owns membership admission/removal, Youssef owns ordering across the change,
-  and Abdallah owns verification of the resulting delivery intervals. No
-  returning actor may receive messages missed while it was dead.
-- Abdallah maintains the common test runner, but each member writes their
-  component tests and fixes defects in their own part. All four members will
-  run and review the integration scenarios.
-- We will integrate in the assignment's order: no failures; failures without
-  reinsertion; resurrection/reinsertion; voluntary joins and departures.
-- Each member commits and merges under their own identity. Work is integrated
-  into `project-master`; the tested final version is merged into `master`.
-  Completed contributions and test results will be recorded here as we finish.
+Adam and Youssef connected membership views to TOM periods. Arhan's task clocks
+are used through `TaskClock`. Abdallah's integration runner records multicast
+identities and deliveries through direct verifier calls. All members contributed
+commits and merges on their personal branches and `project-master`.
 
