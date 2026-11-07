@@ -86,3 +86,16 @@ Members 1, 2 and 3. Member 1 multicasts `m` and dies after sending it to member 
 - We deliver nothing until all the LEFTOVER have arrived.
 
 - Before the death, nobody could pass a DATA of `p` that it does not have: `p` sends its ACK for a later message after that DATA on the same link, and a link never skips a packet. A member that lacks the DATA also lacks that ACK, so it cannot deliver what comes after.
+
+## 8. With the Group
+
+The Group of Adam gives the same packets of a removed member to everybody, before it installs the view without it. So there is no DATA that only some survivors have, and `TomMember` does not need the LEFTOVER: it uses `removeMember`. The LEFTOVER stays for a group without this guarantee. Without it, a member that finished a period could not answer a LEFTOVER for it, and the others would wait forever. See `tom_version3_spec.md`.
+
+## 9. Contract for the verifier
+
+- The payload can contain an envelope with its own unique id: TOM does not look at it.
+- Register the expected message just before calling `multicast()`. A delivery never happens inside `multicast()`, it comes later. A call that returns normally while the actor is alive is a message sent.
+- The members that stay alive deliver the same messages in the same order.
+- The messages of a member that stays alive are delivered by all the members that were in the group.
+- A message of a member that died while sending is delivered by all the members that were in the group and are still alive, or by none of them. What the dead member delivered is not checked.
+- To check this, wait for the end: the deaths are detected and no packet is left. TOM does not show when a member received a DATA, only the deliveries.

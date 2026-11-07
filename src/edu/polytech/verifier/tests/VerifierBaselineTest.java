@@ -460,6 +460,73 @@ public final class VerifierBaselineTest {
                 Code.INVALID_SLOT, null, id(A, 0));
     }
 
+    private static void provisionalEarlyDelivery() {
+        VerifierHarness h = harness(1, 0, 0);
+        MessageId m = id(A, 1);
+        byte[] original = bytes(7);
+        check(h.verifier().beginMulticast(0, m, original), "begin accepted");
+        original[0] = 9;
+        VerificationResult begun = h.snapshot();
+        check(begun.confirmedMessages() == 0 && begun.provisionalMessages() == 1
+                && begun.unaccountedSends() == 0, "provisional is accounted but not confirmed");
+        for (ActorId actor : MEMBERS) check(missing(begun, m, actor), "initial obligation");
+        all(h, m, bytes(7));
+        VerificationResult early = h.snapshot();
+        expect(early, Verdict.IN_PROGRESS, Code.PROVISIONAL_SUBMISSION);
+        check(early.confirmedMessages() == 0 && early.validDeliveries() == 3
+                && early.missingDeliveries().isEmpty(), "early delivery does not confirm");
+        check(h.verifier().confirmMulticast(m), "confirm accepted");
+        VerificationResult confirmed = h.snapshot();
+        check(confirmed.confirmedMessages() == 1 && confirmed.provisionalMessages() == 0
+                && confirmed.validDeliveries() == 3 && confirmed.missingDeliveries().isEmpty(), "confirmation preserves cleared obligations");
+        check(!confirmed.hasDiagnostic(Code.PROVISIONAL_SUBMISSION), "resolved provisional diagnostic disappears");
+        expect(finish(h), Verdict.SUCCESSFUL);
+        check(begun.provisionalMessages() == 1 && begun.missingDeliveries().size() == 3
+                && early.confirmedMessages() == 0, "earlier provisional snapshots immutable");
+    }
+
+    private static void unresolvedSubmission(boolean uncertain) {
+        // Atomic traffic meets coverage: unresolved provisional state must independently block success.
+        VerifierHarness h = harness(2, 0, 0);
+        MessageId atomic = id(A, 1), provisional = id(A, 2);
+        h.register(0, atomic, bytes(1));
+        check(h.verifier().beginMulticast(1, provisional, bytes(2)), "begin second slot");
+        all(h, atomic, bytes(1)); all(h, provisional, bytes(2));
+        if (uncertain) h.verifier().recordSubmissionIssue(A, 1, SubmissionIssue.UNCERTAIN, "Invocation outcome unavailable");
+        VerificationResult result = finish(h);
+        expect(result, Verdict.INCOMPLETE, Code.PROVISIONAL_SUBMISSION);
+        if (uncertain) expect(result, Verdict.INCOMPLETE, Code.SUBMISSION_UNCERTAIN);
+        Diagnostic d = diagnostic(result, Code.PROVISIONAL_SUBMISSION);
+        check(d.category() == Category.INCOMPLETE && provisional.equals(d.message()) && d.receiver() == null,
+                "provisional diagnostic attribution");
+        check(result.coverageSatisfied() && result.missingDeliveries().isEmpty()
+                && result.unaccountedSends() == 0 && result.confirmedMessages() == 1
+                && result.provisionalMessages() == 1, "unresolved state independently prevents success");
+        check(result.accountedSlots().get(A).get(1).startsWith("PROVISIONAL "), "sparse provisional status");
+    }
+
+    private static void invalidConfirmation(String kind) {
+        VerifierHarness h = harness(1, 0, 0);
+        MessageId m = id(A, 1);
+        Code code = Code.INVALID_CONFIRMATION;
+        if (kind.equals("unknown")) {
+            code = Code.UNKNOWN_MESSAGE;
+        } else {
+            check(h.verifier().beginMulticast(0, m, bytes(7)), "begin for confirmation rejection");
+            if (kind.equals("repeated")) check(h.verifier().confirmMulticast(m), "first confirmation");
+            if (kind.equals("uncertain")) h.verifier().recordSubmissionIssue(A, 0, SubmissionIssue.UNCERTAIN, "Unknown outcome");
+            if (kind.equals("late")) { finish(h); code = Code.LATE_REPORT; }
+            if (kind.equals("draining")) { h.closeWorkload(); code = Code.WORKLOAD_CLOSED; }
+        }
+        VerificationResult before = h.snapshot();
+        check(!h.verifier().confirmMulticast(m), "invalid confirmation rejected");
+        VerificationResult after = h.snapshot();
+        observation(after, code, null, code == Code.WORKLOAD_CLOSED ? null : m);
+        check(after.confirmedMessages() == before.confirmedMessages()
+                && after.provisionalMessages() == before.provisionalMessages(), "rejected confirmation changes no counters");
+        unchanged(before, after);
+    }
+
     public static void main(String[] args) {
         test("immutable value identities", VerifierBaselineTest::identities);
         test("configuration validation and copying", VerifierBaselineTest::configuration);
@@ -488,6 +555,11 @@ public final class VerifierBaselineTest {
         test("timeout and interruption precedence", VerifierBaselineTest::timeoutAndInterruption);
         test("coverage, unaccounted sends and sparse long counts", VerifierBaselineTest::coverageAndLargePlans);
         test("practical public arithmetic boundaries", VerifierBaselineTest::practicalArithmeticBoundaries);
+        test("provisional original and early deliveries then confirmation", VerifierBaselineTest::provisionalEarlyDelivery);
+        test("unresolved provisional blocks success despite coverage", () -> unresolvedSubmission(false));
+        test("uncertain provisional blocks success despite deliveries", () -> unresolvedSubmission(true));
+        for (String kind : new String[] {"repeated", "unknown", "uncertain", "late", "draining"})
+            test("confirmation: " + kind, () -> invalidConfirmation(kind));
         System.out.println("VerifierBaselineTest: " + passed + " simulated-report test groups passed");
     }
 }

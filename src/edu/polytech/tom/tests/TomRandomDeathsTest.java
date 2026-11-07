@@ -9,14 +9,13 @@ import static edu.polytech.tom.tests.TomProcessTest.step;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Set;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
 
 /*
  * TEST with random deaths, it uses the fake network of TomProcessTest.
- * Some members die at random moments while they send
+ * Some members die at random moments while they send.
  */
 public class TomRandomDeathsTest {
 
