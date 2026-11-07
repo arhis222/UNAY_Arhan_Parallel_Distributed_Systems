@@ -17,7 +17,7 @@ public final class VerificationResult {
         INVALID_INPUT, WRONG_CONTEXT, UNKNOWN_ACTOR, INVALID_SLOT, REUSED_SLOT, REUSED_MESSAGE,
         UNKNOWN_MESSAGE, DUPLICATE, CONTENT_MISMATCH, ORDER_DIVERGENCE, LATE_REPORT,
         WORKLOAD_CLOSED, CONFLICTING_CLOSE, SUBMISSION_REJECTED, NOT_INVOKED,
-        SUBMISSION_UNCERTAIN, REPORTING_GAP, WORKLOAD_OPEN, UNACCOUNTED_SENDS,
+        SUBMISSION_UNCERTAIN, PROVISIONAL_SUBMISSION, INVALID_CONFIRMATION, REPORTING_GAP, WORKLOAD_OPEN, UNACCOUNTED_SENDS,
         MISSING_DELIVERIES, UNMET_COVERAGE, TIMEOUT, INTERRUPTED, COUNTER_OVERFLOW
     }
 
@@ -71,19 +71,19 @@ public final class VerificationResult {
     private final Verdict verdict;
     private final CloseReason closeReason;
     private final boolean coverageSatisfied;
-    private final long confirmedMessages, validDeliveries, unaccountedSends;
+    private final long confirmedMessages, validDeliveries, provisionalMessages, unaccountedSends;
     private final List<Diagnostic> diagnostics;
     private final List<MissingDelivery> missingDeliveries;
     private final Map<ActorId, List<MessageId>> histories;
     private final Map<ActorId, Map<Integer, String>> accountedSlots;
 
     VerificationResult(BaselineScenario scenario, Phase phase, Verdict verdict, CloseReason closeReason,
-            boolean coverageSatisfied, long confirmedMessages, long validDeliveries, long unaccountedSends,
+            boolean coverageSatisfied, long confirmedMessages, long validDeliveries, long provisionalMessages, long unaccountedSends,
             List<Diagnostic> diagnostics, List<MissingDelivery> missing,
             Map<ActorId, List<MessageId>> histories, Map<ActorId, Map<Integer, String>> slots) {
         this.scenario = scenario; this.phase = phase; this.verdict = verdict; this.closeReason = closeReason;
         this.coverageSatisfied = coverageSatisfied; this.confirmedMessages = confirmedMessages;
-        this.validDeliveries = validDeliveries; this.unaccountedSends = unaccountedSends;
+        this.validDeliveries = validDeliveries; this.provisionalMessages = provisionalMessages; this.unaccountedSends = unaccountedSends;
         this.diagnostics = Collections.unmodifiableList(new ArrayList<>(diagnostics));
         missingDeliveries = Collections.unmodifiableList(new ArrayList<>(missing));
         Map<ActorId, List<MessageId>> historyCopy = new LinkedHashMap<>();
@@ -103,6 +103,8 @@ public final class VerificationResult {
     public boolean coverageSatisfied() { return coverageSatisfied; }
     public long confirmedMessages() { return confirmedMessages; }
     public long validDeliveries() { return validDeliveries; }
+    /** Registered originals not yet confirmed, including uncertain provisional records. */
+    public long provisionalMessages() { return provisionalMessages; }
     public long unaccountedSends() { return unaccountedSends; }
     public List<Diagnostic> diagnostics() { return diagnostics; }
     public List<MissingDelivery> missingDeliveries() { return missingDeliveries; }

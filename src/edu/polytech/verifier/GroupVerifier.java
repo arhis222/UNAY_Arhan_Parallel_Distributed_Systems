@@ -23,7 +23,8 @@ public final class GroupVerifier {
     private static final class Slot {
         MessageId id;
         SubmissionIssue issue;
-        String describe() { return (id == null ? "UNCONFIRMED" : "CONFIRMED " + id)
+        boolean confirmed;
+        String describe() { return (id == null ? "UNCONFIRMED" : (confirmed ? "CONFIRMED " : "PROVISIONAL ") + id)
                 + (issue == null ? "" : " / " + issue); }
     }
     private static final class RegisteredMessage {
@@ -126,26 +127,60 @@ public final class GroupVerifier {
     }
 
     public void registerMulticast(int plannedIndex, MessageId id, byte[] original) {
-        if (!event() || !canAccount() || !context(id, null)) return;
+        register(plannedIndex, id, original, true);
+    }
+
+    /** Retains independent evidence before invocation; delivery never confirms it. */
+    public boolean beginMulticast(int plannedIndex, MessageId id, byte[] original) {
+        return register(plannedIndex, id, original, false);
+    }
+
+    private boolean register(int plannedIndex, MessageId id, byte[] original, boolean atomic) {
+        if (!event() || !canAccount() || !context(id, null)) return false;
         if (original == null) {
             diagnostic(Code.INVALID_INPUT, Category.OBSERVATION, null, id, "Original bytes required");
-            return;
+            return false;
         }
-        if (!slot(id.sender(), plannedIndex, id)) return;
+        if (!slot(id.sender(), plannedIndex, id)) return false;
         if (registered.containsKey(id)) {
             diagnostic(Code.REUSED_MESSAGE, Category.OBSERVATION, null, id, "Identity already registered");
-            return;
+            return false;
         }
         Map<Integer, Slot> senderSlots = slots.get(id.sender());
         if (senderSlots.containsKey(plannedIndex)) {
             diagnostic(Code.REUSED_SLOT, Category.OBSERVATION, null, id, "Slot already accounted: " + plannedIndex);
-            return;
+            return false;
         }
         RegisteredMessage record = new RegisteredMessage(original, plannedIndex, histories.keySet());
-        Slot entry = new Slot(); entry.id = id;
+        Slot entry = new Slot(); entry.id = id; entry.confirmed = atomic;
         registered.put(id, record);
         senderSlots.put(plannedIndex, entry);
+        if (atomic) confirmed = Math.addExact(confirmed, 1);
+        return true;
+    }
+
+    /** Confirms exactly one issue-free provisional invocation while workload is open. */
+    public boolean confirmMulticast(MessageId id) {
+        if (!event()) return false;
+        if (phase == Phase.CLOSED) {
+            diagnostic(Code.LATE_REPORT, Category.OBSERVATION, null, id, "Confirmation after observation closure");
+            return false;
+        }
+        if (!canAccount() || !context(id, null)) return false;
+        RegisteredMessage record = registered.get(id);
+        if (record == null) {
+            diagnostic(Code.UNKNOWN_MESSAGE, Category.OBSERVATION, null, id, "Confirmation without registration");
+            return false;
+        }
+        Slot entry = slots.get(id.sender()).get(record.slot);
+        if (entry.confirmed || entry.issue != null) {
+            diagnostic(Code.INVALID_CONFIRMATION, Category.OBSERVATION, null, id,
+                    "Slot " + record.slot + " cannot be confirmed: " + entry.describe());
+            return false;
+        }
+        entry.confirmed = true;
         confirmed = Math.addExact(confirmed, 1);
+        return true;
     }
 
     public void recordSubmissionIssue(ActorId sender, int plannedIndex, SubmissionIssue issue, String detail) {
@@ -257,13 +292,20 @@ public final class GroupVerifier {
         List<MissingDelivery> missing = new ArrayList<>();
         Map<ActorId, List<MessageId>> historyView = new LinkedHashMap<>();
         Map<ActorId, Map<Integer, String>> accounting = new LinkedHashMap<>();
-        long accounted = 0;
+        long accounted = 0, provisional = 0;
         boolean problemSlot = false;
         for (Map.Entry<ActorId, Map<Integer, Slot>> actor : slots.entrySet()) {
             Map<Integer, String> view = new LinkedHashMap<>();
             for (Map.Entry<Integer, Slot> entry : actor.getValue().entrySet()) {
                 view.put(entry.getKey(), entry.getValue().describe());
-                problemSlot |= entry.getValue().issue != null;
+                Slot state = entry.getValue();
+                problemSlot |= state.issue != null;
+                if (state.id != null && !state.confirmed) {
+                    provisional = Math.addExact(provisional, 1);
+                    evidence.add(new Diagnostic(Code.PROVISIONAL_SUBMISSION, Category.INCOMPLETE, ordinal,
+                            null, state.id, "Unconfirmed submission in slot " + entry.getKey()
+                            + (state.issue == null ? "" : "; " + state.issue), null, null));
+                }
             }
             accounted = Math.addExact(accounted, actor.getValue().size());
             accounting.put(actor.getKey(), view);
@@ -297,10 +339,10 @@ public final class GroupVerifier {
         if (violation) verdict = Verdict.UNSUCCESSFUL;
         else if (phase != Phase.CLOSED) verdict = Verdict.IN_PROGRESS;
         else if (closeReason != CloseReason.NORMAL || !workloadClosed || reportingGap || problemSlot
-                || unaccounted != 0 || !missing.isEmpty() || !coverage) verdict = Verdict.INCOMPLETE;
+                || provisional != 0 || unaccounted != 0 || !missing.isEmpty() || !coverage) verdict = Verdict.INCOMPLETE;
         else verdict = Verdict.SUCCESSFUL;
         return new VerificationResult(scenario, phase, verdict, closeReason, coverage, confirmed, validDeliveries,
-                unaccounted, evidence, missing, historyView, accounting);
+                provisional, unaccounted, evidence, missing, historyView, accounting);
     }
 
     private Diagnostic incomplete(Code code, String detail) {
