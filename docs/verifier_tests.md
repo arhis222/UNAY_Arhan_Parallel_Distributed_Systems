@@ -495,6 +495,85 @@ The fixture retains TomGroupTest's bounded waits and standalone-process cleanup.
 No teammate sources or Eclipse configuration changed. Fresh Eclipse UI validation
 of these additions and final integrated submission validation remain pending.
 
+## Real death and reinsertion — 7 November 2026
+
+Added `VerifierReinsertionGroupTest`, using the real three-actor Group/TOM setup
+and envelope reporting from the existing integration fixtures. Its independent
+send-side oracle records eight originals and explicit recipient incarnations:
+three before-death messages for the original group, two absent-phase messages
+for survivors 1 and 3, and three post-return messages for the admitted group.
+Original bytes and recipient sets are copied before multicast; normal live return
+confirms each invocation. Callbacks bind the actual receiving incarnation at
+listener installation, validate sender metadata, and check eligibility, content
+and duplicates. Expected identities and obligations never come from deliveries.
+This oracle is local test infrastructure, not a general dynamic-membership verifier.
+
+Each phase waits for its declared application obligations. Actual suicide is
+observed separately from both survivors' exact removal views. Resurrection must
+produce a greater incarnation; all three installed views must then contain that
+new incarnation before post-return sends begin. At final assessment, both
+survivors have identical full eight-message histories, and the returning
+incarnation's three-message history equals the survivors' projection onto the
+independently declared post-return IDs. Earlier messages are forbidden for the
+new incarnation even if the old incarnation previously delivered them.
+
+Listeners remain installed throughout and after all required deliveries, including
+an additional pump-scheduled 100 ms observation interval followed by final
+assessment on the pump. They are not replaced with no-op listeners or disabled
+when expected counts are reached. Bounded future waits and polling fail the test
+on missing transition evidence, missing deliveries or callback errors. Standalone
+process exit follows `TomGroupTest` because Executor has no shutdown API.
+
+A focused simulated negative case uses the same eligibility/report/assessment
+code: a correctly framed absent-phase application message is reported to the
+returning incarnation. It must record `FORBIDDEN_REPLAY` with receiver/message
+context, refuse an eligible history entry, and make final assessment throw.
+The negative case passes only when that replay is rejected.
+
+Exact commands (installed Temurin Java 8; class files outside the repository):
+
+```sh
+mktemp -d /tmp/sar-reinsertion.XXXXXX
+# Returned /tmp/sar-reinsertion.VllLts
+/home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/javac -encoding UTF-8 -Xlint:all -sourcepath src -d /tmp/sar-reinsertion.VllLts src/edu/polytech/verifier/tom/tests/*Test.java src/edu/polytech/verifier/tests/*Test.java src/edu/polytech/tom/tests/*Test.java
+timeout 30s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-reinsertion.VllLts edu.polytech.verifier.tom.tests.VerifierReinsertionGroupTest
+timeout 45s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-reinsertion.VllLts edu.polytech.verifier.tom.tests.VerifierTomGroupTest
+timeout 45s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-reinsertion.VllLts edu.polytech.verifier.tom.tests.VerifierSurvivorGroupTest
+timeout 45s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-reinsertion.VllLts edu.polytech.verifier.tests.SurvivorVerifierTest
+timeout 45s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-reinsertion.VllLts edu.polytech.verifier.tests.VerifierBaselineTest
+timeout 45s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-reinsertion.VllLts edu.polytech.verifier.tom.tests.ApplicationEnvelopeCodecTest
+timeout 45s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-reinsertion.VllLts edu.polytech.tom.tests.TomGroupTest
+timeout 45s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-reinsertion.VllLts edu.polytech.tom.tests.TomMessageTest
+timeout 45s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-reinsertion.VllLts edu.polytech.tom.tests.TomProcessTest
+timeout 45s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-reinsertion.VllLts edu.polytech.tom.tests.TomMemberTest
+timeout 45s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-reinsertion.VllLts edu.polytech.tom.tests.TomRandomDeathsTest
+```
+
+Compilation exited 0 with no `-Xlint:all` warnings. All test processes exited 0,
+with no external timeouts. New test output:
+
+```text
+VerifierReinsertionGroupTest: simulated forbidden-replay negative case passed
+VerifierReinsertionGroupTest: SUCCESSFUL; death/removal/new incarnation observed; survivors 8 each, returning 3, no earlier replay
+```
+
+Regressions passed: both fixed-group periods (0/5 ms), real-death survivor
+integration, 15 independent survivor cases, 57 baseline groups, 225 codec checks,
+and all five TOM mains (`TomGroupTest`, `TomMessageTest`, `TomProcessTest`,
+`TomMemberTest`, `TomRandomDeathsTest`; the latter reports 2,000 simulated runs).
+Existing verifier, runner and teammate sources are unchanged.
+
+Observation limits: this finite controlled trace exercises explicit death and
+reinsertion between completed application workloads, following TOM v3's stated
+no-earlier-message contract. It does not settle in-flight membership boundaries,
+random failure, concurrent joins/departures or state transfer. The extra 100 ms
+is an explicit observation window, not proof of protocol-wide traffic exhaustion
+or an unlimited no-replay guarantee. Success here covers the stated scenario
+and window; future/late replay outside that window is not established absent
+by this test. No new quiescence API or recovery mechanism was added. Java 8 and
+Eclipse configuration are preserved; no new Eclipse UI validation was performed.
+Final integrated fresh-workspace validation remains required.
+
 ## Limitations and remaining integration
 
 - Simulated reports validate the checker against supplied evidence, not the
