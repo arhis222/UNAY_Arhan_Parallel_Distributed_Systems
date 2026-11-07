@@ -16,6 +16,52 @@ Specification: [group_spec.md](group_spec.md)
 | `Membership` | Running group: perfect failure detector, and the order of view changes (steps 2 to 4). |
 | `GroupMember` | One member's endpoint: links, packets, and installation of view changes. Implements `Group`. |
 
+## Object graph
+
+```
+GroupManager                    (formation only, then no longer used)
+  |-- task --> protected CTask "groupN-manager"
+  |-- members --> GroupMember   (until view 1 is installed)
+  +-- creates --> Membership    (when view 1 starts)
+
+Membership                      (one per group, shared by its members)
+  |-- latest --> View
+  |-- live --> GroupMember      (by id)
+  |-- joining --> GroupMember   (admitted, not joined yet)
+  +-- used --> MemberId         (every identity ever admitted)
+
+GroupMember  implements Group, TomProcess.Transport
+  |-- self --> MemberId (id, incarnation)
+  |-- actor --> Actor
+  |              +-- death listener --> Membership.failed(member)
+  |-- task --> CTask "group", owned by the Actor
+  |              +-- broker --> CQueueBroker, bound on port 4242
+  |-- links --> MessageQueue    (by MemberId)
+  |              +-- listener --> Link (HELLO / DATA)
+  |-- installed --> View
+  |-- pending --> Change (type, who, View)   FIFO of view changes
+  |-- early --> buffered packets
+  |-- membership --> Membership
+  +-- listener --> Group.Listener   (TOM, or a test probe)
+
+View
+  |-- viewId
+  +-- members --> MemberId      (sorted by id)
+```
+
+A group of three members, after formation:
+
+```
+             Membership
+           /     |      \
+   GroupMember1  GroupMember2  GroupMember3
+        |  \________/ \________/  |
+        |   MessageQueue links    |
+        \_________________________/
+     (one link per pair; each member also sends to itself
+      by posting on its own task)
+```
+
 ## Tasks and brokers
 
 - The manager runs on its own task, `groupN-manager`. As required by the
