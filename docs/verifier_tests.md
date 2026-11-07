@@ -574,6 +574,173 @@ by this test. No new quiescence API or recovery mechanism was added. Java 8 and
 Eclipse configuration are preserved; no new Eclipse UI validation was performed.
 Final integrated fresh-workspace validation remains required.
 
+## Runtime-triggered random actor failure — 7 November 2026
+
+Added a separate `VerifierRandomFailureGroupTest`; the explicit-suicide test
+remains unchanged. Each of two runs forms three real Group/TOM actors with
+runtime failure probability zero. Only actor 2 is constructed fail-capable;
+the driver and actors 1 and 3 are protected. After all initial views and
+incarnations are checked, actor 2 sends one independently recorded message and
+that finite traffic drains. Only then the fixture enables the actual runtime
+failure mechanism with **seed 123 and probability 0.35**. An actor-owned eligible
+probe posts bounded successive callbacks (at most 100 executions, separated by
+1 ms), letting Executor's seeded sampling trigger failure before a callback.
+No suicide, manual kill, artificial exception or alternate failure detector is
+used. The probe's failure listener runs on the protected driver and must report
+`IllegalStateException("Simulated task failure")`; `Actor.dead()` must also be
+true. In both observed runs, two probe callbacks executed before runtime failure.
+
+Actual death is recorded separately from each survivor's installed removal view.
+Both exact survivor views must be observed before post-removal traffic starts.
+Each survivor then sends two messages at the configured period (0 ms or 5 ms).
+The first send is posted immediately; every successor uses a separate runnable,
+yielding at 0 ms and delaying at least 5 ms after the preceding send completes
+at 5 ms. A monotonic elapsed-time assertion checks positive pacing. Expectations
+are send-side originals registered before multicast, followed by confirmation
+only on normal live return. Five returned submissions are required independently
+of callbacks; four are mandatory survivor messages. Receiver-bound envelope
+reports go through the existing `SurvivorVerifier` for content, duplicates,
+mandatory deliveries, final full-history equality and dead-sender all-or-none.
+
+Completion uses the same opaque transit accounting as the explicit-death fixture,
+with no DATA-reception evidence or protocol decision changes. Survivor-target
+traffic must drain, all paced sends must finish, and all mandatory deliveries
+must arrive. Missing death/removal evidence or timeout fails the test process;
+none is accepted as a successful scenario. The runtime failure configuration
+is reset to probability zero in `finally`, using the synchronized runtime API
+without relying on the pump; an outer final reset also covers failures between
+runs. Pacing callbacks are disabled during cleanup. Standalone process exit
+matches the existing integration fixtures.
+
+Exact Java 8 commands, with generated classes outside the repository:
+
+```sh
+mktemp -d /tmp/sar-random-verifier.XXXXXX
+# Returned /tmp/sar-random-verifier.gItXTu
+/home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/javac -encoding UTF-8 -Xlint:all -sourcepath src -d /tmp/sar-random-verifier.gItXTu src/edu/polytech/verifier/tom/tests/*Test.java src/edu/polytech/verifier/tests/*Test.java src/edu/polytech/tom/tests/*Test.java
+timeout 30s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-random-verifier.gItXTu edu.polytech.verifier.tom.tests.VerifierRandomFailureGroupTest
+timeout 45s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-random-verifier.gItXTu edu.polytech.verifier.tom.tests.VerifierTomGroupTest
+timeout 45s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-random-verifier.gItXTu edu.polytech.verifier.tom.tests.VerifierSurvivorGroupTest
+timeout 45s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-random-verifier.gItXTu edu.polytech.verifier.tom.tests.VerifierReinsertionGroupTest
+timeout 45s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-random-verifier.gItXTu edu.polytech.verifier.tests.SurvivorVerifierTest
+timeout 45s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-random-verifier.gItXTu edu.polytech.verifier.tests.VerifierBaselineTest
+timeout 45s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-random-verifier.gItXTu edu.polytech.verifier.tom.tests.ApplicationEnvelopeCodecTest
+timeout 45s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-random-verifier.gItXTu edu.polytech.tom.tests.TomGroupTest
+timeout 45s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-random-verifier.gItXTu edu.polytech.tom.tests.TomMessageTest
+timeout 45s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-random-verifier.gItXTu edu.polytech.tom.tests.TomProcessTest
+timeout 45s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-random-verifier.gItXTu edu.polytech.tom.tests.TomMemberTest
+timeout 45s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-random-verifier.gItXTu edu.polytech.tom.tests.TomRandomDeathsTest
+```
+
+Compilation exited 0 with no `-Xlint:all` warnings. All test processes exited 0;
+no external timeout expired. New test output:
+
+```text
+VerifierRandomFailureGroupTest: period=0 ms seed=123 probability=0.35 probeExecutions=2 SUCCESSFUL; runtime death, both removal views, 4 required messages, identical survivor histories
+VerifierRandomFailureGroupTest: period=5 ms seed=123 probability=0.35 probeExecutions=2 SUCCESSFUL; runtime death, both removal views, 4 required messages, identical survivor histories
+```
+
+All regressions passed: fixed-group integration at 0/5 ms, separate explicit
+suicide integration, reinsertion integration/replay negative case, 15 independent
+survivor cases, 57 baseline groups, 225 codec checks and all five TOM test mains.
+`TomRandomDeathsTest` reports 2,000 simulated random-death runs; it remains
+component evidence separate from the new actual-runtime scenario.
+
+Limits: one seed, one fail-capable actor, one real death per run, and finite
+post-removal workloads. The probe exercises random runtime failure after readiness,
+not failure during a multicast or randomized membership choice. Dead-sender
+traffic is completed before enabling failures, so this real scenario exercises
+all-delivered; none/partial outcomes remain independent simulated cases. A seed
+does not guarantee identical event scheduling across environments. The bounded
+probe can exhaust or wait out the budget without a death, which fails rather
+than substituting an explicit kill. No reinsertion, concurrent membership action,
+production watchdog or new runtime/TOM API is added. Existing verifier and
+teammate sources and Eclipse configuration are unchanged. No new Eclipse UI
+validation was performed; final fresh-workspace validation remains required.
+
+## Voluntary join and leave — 7 November 2026
+
+Added `VerifierJoinLeaveGroupTest` using real Actors, GroupManager, Group and
+TomMember. Three protected actors form the initial group; actor 4 voluntarily
+joins through actor 1, then actor 2 voluntarily leaves. Failures are disabled.
+Every relevant participant must install the exact join/removal view with matching
+incarnations. The departing endpoint must expose no current view while its actor
+remains alive, distinguishing departure from failure. Traffic starts only after
+those observations; missing views, callback errors or bounded-wait timeouts fail
+the process.
+
+There are three finite workloads, each with two sends per eligible sender:
+
+| Workload | Eligible actors | Messages | Required deliveries |
+| --- | --- | --- | --- |
+| Before join | 1, 2, 3 | 6 | 18 |
+| After join | 1, 2, 3, 4 | 8 | 32 |
+| After leave | 1, 3, 4 | 6 | 18 |
+
+The test-local oracle copies each original and eligible-recipient set before
+multicast, confirms after normal live return and retains actual receiver-bound
+histories. It checks sender metadata, exact content, duplicate identities and
+ineligible delivery. Independent message/recipient obligations detect omissions
+even at every recipient. Each workload's projected histories must contain its
+complete independently declared message set exactly once, in the same order at
+every eligible participant. Continuously present actors 1 and 3 additionally have
+identical full histories. Newcomer 4 has exactly 14 messages and none from before
+join; departing actor 2 has exactly 14 and none from after leave. Total coverage
+is 20 confirmations and 68 eligible deliveries.
+
+Both 0 ms and 5 ms use one posted send per callback. Period zero yields without
+intentional delay; at 5 ms each sender's second send is delayed from its first
+completion and checked with monotonic elapsed time. Each workload finishes before
+the next membership action. Listeners, including the departing endpoint's listener,
+remain installed throughout an additional pump-scheduled 100 ms observation window
+and final assessment. The event pump is never blocked by caller-side polling.
+
+Exact commands (installed Temurin Java 8; generated classes outside the repository):
+
+```sh
+mktemp -d /tmp/sar-join-leave.XXXXXX
+# Returned /tmp/sar-join-leave.1TnOlh
+/home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/javac -encoding UTF-8 -Xlint:all -sourcepath src -d /tmp/sar-join-leave.1TnOlh src/edu/polytech/verifier/tom/tests/*Test.java src/edu/polytech/verifier/tests/*Test.java src/edu/polytech/tom/tests/*Test.java
+timeout 30s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-join-leave.1TnOlh edu.polytech.verifier.tom.tests.VerifierJoinLeaveGroupTest
+timeout 45s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-join-leave.1TnOlh edu.polytech.verifier.tom.tests.VerifierTomGroupTest
+timeout 45s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-join-leave.1TnOlh edu.polytech.verifier.tom.tests.VerifierSurvivorGroupTest
+timeout 45s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-join-leave.1TnOlh edu.polytech.verifier.tom.tests.VerifierReinsertionGroupTest
+timeout 45s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-join-leave.1TnOlh edu.polytech.verifier.tom.tests.VerifierRandomFailureGroupTest
+timeout 45s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-join-leave.1TnOlh edu.polytech.verifier.tests.SurvivorVerifierTest
+timeout 45s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-join-leave.1TnOlh edu.polytech.verifier.tests.VerifierBaselineTest
+timeout 45s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-join-leave.1TnOlh edu.polytech.verifier.tom.tests.ApplicationEnvelopeCodecTest
+timeout 45s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-join-leave.1TnOlh edu.polytech.tom.tests.TomGroupTest
+timeout 45s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-join-leave.1TnOlh edu.polytech.tom.tests.TomMessageTest
+timeout 45s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-join-leave.1TnOlh edu.polytech.tom.tests.TomProcessTest
+timeout 45s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-join-leave.1TnOlh edu.polytech.tom.tests.TomMemberTest
+timeout 45s /home/abdallah/.sdkman/candidates/java/8.0.392-tem/bin/java -cp /tmp/sar-join-leave.1TnOlh edu.polytech.tom.tests.TomRandomDeathsTest
+```
+
+Compilation exited 0 with no `-Xlint:all` warnings. All test processes exited 0;
+no external timeout expired. Actual new-test output:
+
+```text
+VerifierJoinLeaveGroupTest: period=0 ms SUCCESSFUL; join/leave views observed, 20 messages, 68 eligible deliveries, common workload order
+VerifierJoinLeaveGroupTest: period=5 ms SUCCESSFUL; join/leave views observed, 20 messages, 68 eligible deliveries, common workload order
+```
+
+Regressions passed: fixed-group and random-failure integration at both periods,
+explicit-death integration, reinsertion/replay test, 15 independent survivor cases,
+57 baseline groups, 225 codec checks, and all five TOM test mains. TOM's simulated
+random-death regression reports 2,000 runs. Existing verifier and teammate code
+is unchanged.
+
+Limits: one voluntary admission and one voluntary departure between completed
+application workloads, with no failures or in-flight membership-boundary claims.
+This test-local oracle is not a general dynamic-membership policy implementation.
+The observation window provides bounded evidence for no earlier newcomer traffic
+and no post-departure delivery; it is not proof of protocol-wide quiescence or
+absence of arbitrarily late events. Period tests establish minimum offered-load
+spacing, not precise wall-clock scheduling. Standalone-process cleanup follows
+TomGroupTest; no runtime shutdown API was added. Eclipse configuration remains
+unchanged, no new Eclipse UI validation was performed, and final integrated
+fresh-workspace verification remains required.
+
 ## Limitations and remaining integration
 
 - Simulated reports validate the checker against supplied evidence, not the
