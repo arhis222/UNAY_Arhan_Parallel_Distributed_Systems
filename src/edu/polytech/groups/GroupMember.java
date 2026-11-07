@@ -212,9 +212,8 @@ final class GroupMember implements Group {
     if (installed != null && installed.members.contains(from)) {
       if (listener != null) listener.received(from.id, packet);
     } else if (installed == null || !pending.isEmpty()) {
-      early.add(new Object[] { from, packet }); // 'from' may be in a view not installed yet
+      early.add(new Object[] { from, packet });
     }
-    // otherwise: not a member, drop
   }
 
   private final class Link implements MessageQueue.Listener {
