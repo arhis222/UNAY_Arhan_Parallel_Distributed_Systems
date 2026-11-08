@@ -31,7 +31,7 @@ final class Membership {
     }
   }
 
- 
+
   String brokerName(String prefix, MemberId id) {
     return prefix + "-member-" + id.id + "-" + id.incarnation + "-j" + (++brokers);
   }

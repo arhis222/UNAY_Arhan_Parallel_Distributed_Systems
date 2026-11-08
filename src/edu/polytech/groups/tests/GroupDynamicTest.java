@@ -423,7 +423,7 @@ public final class GroupDynamicTest {
             if (reference == null) reference = fromX;
             else check(reference.equals(fromX), "Members disagree on packets from " + x + ":\n" + reference + "\n" + fromX);
           }
-        
+
           List<String> expected = new ArrayList<String>();
           synchronized (sent) {
             List<String[]> byX = sent.get(x);

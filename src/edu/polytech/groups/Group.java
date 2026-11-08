@@ -13,7 +13,7 @@ import edu.polytech.tom.TomProcess;
 public interface Group extends TomProcess.Transport {
 
   interface Listener {
-    /** A packet from a member of the current view . */
+    /** A packet from a member of the current view. */
     void received(int from, byte[] packet);
 
     /**
