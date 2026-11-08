@@ -15,8 +15,6 @@ import java.util.Set;
  * current member. The pump runs one callback at a time and each task is FIFO,
  * so all members receive the same changes, in the same order, with the same
  * views. Each member then installs them following its own rules (GroupMember).
- *
- * All methods run on the event pump.
  */
 final class Membership {
   private final Map<Integer, GroupMember> live = new HashMap<Integer, GroupMember>();
@@ -33,7 +31,7 @@ final class Membership {
     }
   }
 
-  /** Broker names are never freed by CQueueBroker, so every join needs a new one. */
+
   String brokerName(String prefix, MemberId id) {
     return prefix + "-member-" + id.id + "-" + id.incarnation + "-j" + (++brokers);
   }
@@ -44,9 +42,6 @@ final class Membership {
     GroupMember m = live.get(who.id);
     if (m != null && !m.actor.dead()) return "Member id " + who.id + " is already in the group";
     if (joining.containsKey(who.id)) return "Member id " + who.id + " is already joining";
-    // Packets and TOM message ids are identified by (id, incarnation): reusing a
-    // pair would mix old and new packets. A member that left must rejoin under
-    // a new id; a resurrected actor has a new incarnation.
     if (used.contains(who)) return "Identity " + who + " was already used in this group";
     used.add(who);
     joining.put(who.id, newcomer);
@@ -84,8 +79,6 @@ final class Membership {
     if (newcomer.actor.dead()) return;
     GroupMember old = live.get(newcomer.self.id);
     if (old != null) {
-      // Reinsertion before the detector reported the old incarnation's death:
-      // remove the old incarnation first, so every member sees FAIL then JOIN.
       if (old.actor.dead()) failed(old);
       else throw new IllegalStateException("Member id " + newcomer.self.id + " is already in the group");
     }
@@ -96,6 +89,6 @@ final class Membership {
     for (final GroupMember each : live.values())
       each.task.post(() -> each.change(GroupMember.JOIN, who, next, broker));
     live.put(newcomer.self.id, newcomer);
-    newcomer.newcomer(next); // we are on the newcomer's task
+    newcomer.newcomer(next); //  the newcomer's task
   }
 }

@@ -399,8 +399,6 @@ public final class GroupDynamicTest {
           if (!removeView.containsKey(m) && !(", " + members.substring(1, members.length() - 1) + ", ").contains(", " + m + ", "))
             removeView.put(m, id);
       }
-      // G5: endpoints present from X's first view to X's removal (or the end)
-      // received exactly the same packets from X.
       long lastView = ids.get(ids.size() - 1);
       for (String x : joinView.keySet()) {
         long from = joinView.get(x);
@@ -421,12 +419,11 @@ public final class GroupDynamicTest {
           }
           if (!sawTo || selves.get(k).equals(x)) continue;
           if (to == null && !endsAt(log, lastView)) continue;
-          // Agreement, between the members present during X's whole membership.
           if (sawFrom) {
             if (reference == null) reference = fromX;
             else check(reference.equals(fromX), "Members disagree on packets from " + x + ":\n" + reference + "\n" + fromX);
           }
-          // Completeness: every packet X sent to this member was received, in order.
+
           List<String> expected = new ArrayList<String>();
           synchronized (sent) {
             List<String[]> byX = sent.get(x);

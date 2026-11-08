@@ -10,7 +10,7 @@ import edu.polytech.queues.Task;
 import edu.polytech.utils.Executor;
 
 /**
- * Group manager: forms the initial group of N actors, and nothing else.
+ * Group manager: forms the initial group of N actors.
  *
  * It waits for 'initialSize' members, sends them the first view, each member
  * links to every other member through MessageQueues, then the manager starts
